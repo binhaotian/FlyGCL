@@ -201,7 +201,7 @@ class MVP(nn.Module):
             x = x + block.drop_path2(block.ls2(block.mlp(block.norm2(x))))
         return x
 
-    def forward_features(self, inputs: torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward_features(self, inputs: torch.Tensor, forced_route_ids: torch.Tensor = None, router_mode: str = 'learned', **kwargs) -> torch.Tensor:
         self.backbone.eval()
         with torch.no_grad():
             x = self.backbone.patch_embed(inputs)
@@ -225,7 +225,12 @@ class MVP(nn.Module):
         scaled_distance = distance * mass
 
         # Gating: use RPFC at evaluation if enabled, otherwise use original MVP key routing.
-        if getattr(self, "use_rp_gate", False) and (not self.training) and (self.rp_head is not None):
+        if forced_route_ids is not None:
+            # forced_route_ids should be shape [B] with integer route ids
+            if self.selection_size != 1:
+                raise NotImplementedError("forced_route_ids only supported for selection_size=1 in MVP for now")
+            topk = forced_route_ids.unsqueeze(1).long()
+        elif getattr(self, "use_rp_gate", False) and (not self.training) and (self.rp_head is not None):
             # Only consider tasks that have been seen so far
             E = min(self.task_count + 1, self.task_num)
             logits = self.rp_head(query)  # [B, task_num]
@@ -234,7 +239,24 @@ class MVP(nn.Module):
         else:
             topk = scaled_distance.topk(self.selection_size, dim=1, largest=False)[1]
 
-        # Record last expert ids (top-1 prompt slot per sample) for EMA experts.
+        # Record last expert ids (top-1 prompt slot per sample) for EMA experts and router tracing
+        # last_route_ids: top-1 id
+        self.last_route_topk = topk.detach().clone()
+        self.last_route_ids = topk[:, 0].detach().clone()
+        # route scores: convert distance -> score (higher is better)
+        # We compute negated scaled_distance as scores
+        with torch.no_grad():
+            scores_topk = (-scaled_distance).gather(1, topk)
+            # margin: top1 - top2
+            if self.selection_size >= 2:
+                top1 = scores_topk[:, 0]
+                top2 = scores_topk[:, 1]
+                self.last_route_margin = (top1 - top2).detach().cpu().numpy().tolist()
+            else:
+                # no second choice
+                self.last_route_margin = [float(s) for s in (scores_topk[:, 0].detach().cpu().numpy())]
+            self.last_route_scores = scores_topk.detach().cpu().tolist()
+
         if self.use_ema_head and self.num_ema > 0:
             self.last_expert_ids = topk[:, 0].detach()
         else:
@@ -288,14 +310,18 @@ class MVP(nn.Module):
     def get_e_prompt_count(self):
         return self.count
 
-    def forward_with_ema(self, inputs: torch.Tensor) -> list:
+    def forward_with_ema(self, inputs: torch.Tensor, expert_ids: torch.Tensor = None) -> list:
         """Forward with online head and EMA classifier heads.
 
         Returns a list of logits [online, ema_1, ema_2, ...] before adding
         the global class mask (self.mask). EMA heads are indexed by
         per-prompt-slot expert ids (top-1 from the prompt pool).
         """
-        feature, mask = self.forward_features(inputs)
+        # allow passing explicit expert_ids to force routing decisions
+        if expert_ids is not None:
+            feature, mask = self.forward_features(inputs, forced_route_ids=expert_ids)
+        else:
+            feature, mask = self.forward_features(inputs)
 
         # Online head
         feat_norm = self.backbone.fc_norm(feature)

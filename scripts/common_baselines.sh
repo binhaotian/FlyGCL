@@ -18,7 +18,7 @@ NUM_EPOCHS=1  # 1 epoch (online learning)
 ONLINE_ITER=3
 EVAL_PERIOD=1000
 SCHED_NAME="default"
-TRANSFORMS="autoaug"
+TRANSFORMS=""
 
 # Dataset configuration
 DATASET=${3:-"cifar100"}  # Default to cifar100, can be cifar100, imagenet-r, cub200
@@ -79,6 +79,11 @@ run_experiment() {
     
     echo "Running $METHOD experiment..."
     
+    local TRANSFORM_ARGS=()
+    if [[ -n "$TRANSFORMS" ]]; then
+        TRANSFORM_ARGS=(--transforms $TRANSFORMS)
+    fi
+
     "${PYTHON}" -W ignore main.py \
         --seeds $SEEDS \
         --note $NOTE \
@@ -95,11 +100,10 @@ run_experiment() {
         --lr $LR \
         --num_epochs $NUM_EPOCHS \
         --online_iter $ONLINE_ITER \
-        --transforms $TRANSFORMS \
+        "${TRANSFORM_ARGS[@]}" \
         --topk $TOPK \
         --eval_period $EVAL_PERIOD \
         --rnd_NM \
-        --use_amp \
         "${EXTRA_ARGS[@]}" \
         | tee "${LOG_PATH}/logs/${DATASET}/${NOTE}/seed_${SEEDS}_log.txt" 2>&1
 }

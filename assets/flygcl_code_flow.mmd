@@ -1,0 +1,60 @@
+graph LR
+    %% FlyGCL repo-level flow, focused on the actual execution path used by main.py.
+
+    A([main.py 启动 / CLI args])
+    B[configuration.config<br/>base_parser]
+    C[methods.METHODS[method]<br/>构建训练器]
+    D[_Trainer.run()]
+
+    A --> B --> C --> D
+
+    subgraph DATA[数据与采样 / Dataset & Sampler]
+        D --> DS[setup_distributed_dataset()<br/>读取 DATASETS + get_statistics]
+        DS --> TR[构建 train/test transforms]
+        DS --> DT[torchvision / 自定义数据集<br/>download=True + root=data_dir]
+        DS --> SAM[OnlineSampler / OnlineTestSampler]
+        DS --> MASK[初始化类别掩码 mask]
+    end
+
+    subgraph MODEL[模型选择 / Model Selection]
+        D --> SM[setup_distributed_model()<br/>select_model(method, backbone, num_classes, n_tasks, kwargs)]
+        SM --> MSEL{method}
+        MSEL --> FP[FlyPrompt / DualPrompt / MVP<br/>等提示式方法]
+        MSEL --> L2P[L2P / CodaPrompt / SLCA<br/>等其他方法]
+        FP --> BK[backbone: models.vit 或 timm<br/>默认 pretrained=True]
+        L2P --> BK
+    end
+
+    subgraph FLY[FlyPrompt 代码路径 / FlyPrompt Internals]
+        BK --> PRM[Prompt 模块<br/>在 pos_prompt 指定层插入 prompts]
+        BK --> CLS[Backbone CLS 特征]
+
+        PRM --> OUT[Prompted CLS 表征]
+        CLS --> RPFC[RPFC 随机投影 + 岭回归路由<br/>collect(): 累积 G/Q<br/>update(): 求解闭式线性头]
+
+        OUT --> FC[backbone.fc / 在线分类头]
+        OUT --> EMA[experts_fc / EMA 分类头]
+        RPFC --> EXPID[forward_with_rp(): 选 expert_id]
+        EXPID --> EMA
+
+        OUT --> TRAIN[online_train()<br/>计算 mask 后的 loss / backward / optimizer.step]
+        TRAIN --> EMAUPD[update_ema_fc()<br/>process_task_count()]
+    end
+
+    subgraph EVAL[评估与输出 / Evaluation]
+        RPFC --> EVALID[online_evaluate()<br/>先用 RP head 选 expert]
+        EVALID --> ENSEMBLE[forward_with_ema()<br/>+ masked softmax + ensemble]
+        ENSEMBLE --> RES([accuracy / logs / results])
+    end
+
+    classDef entry fill:#f8fafc,stroke:#334155,stroke-width:2px;
+    classDef module fill:#eff6ff,stroke:#2563eb,stroke-width:2px;
+    classDef core fill:#eef2ff,stroke:#6366f1,stroke-width:2px;
+    classDef train fill:#fff7ed,stroke:#f59e0b,stroke-width:2px;
+    classDef output fill:#ecfdf5,stroke:#10b981,stroke-width:2px;
+
+    class A,B,C,D entry;
+    class DS,TR,DT,SAM,MASK,SM,MSEL,FP,L2P module;
+    class BK,PRM,OUT,CLS,RPFC,EXPID,FC,EMA core;
+    class TRAIN,EMAUPD train;
+    class RES output;

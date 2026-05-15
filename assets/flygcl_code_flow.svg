@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="980" viewBox="0 0 2000 980">
+  <defs>
+    <style>
+      .bg { fill: #0b1020; }
+      .panel { fill: #f8fbff; stroke: #1f2937; stroke-width: 2; rx: 18; ry: 18; }
+      .title { font: 700 26px 'Inter', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .sub { font: 600 18px 'Inter', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #334155; }
+      .box { fill: #ffffff; stroke: #2563eb; stroke-width: 2.2; rx: 12; ry: 12; }
+      .box2 { fill: #eef2ff; stroke: #6366f1; stroke-width: 2.2; rx: 12; ry: 12; }
+      .box3 { fill: #fff7ed; stroke: #f59e0b; stroke-width: 2.2; rx: 12; ry: 12; }
+      .box4 { fill: #ecfdf5; stroke: #10b981; stroke-width: 2.2; rx: 12; ry: 12; }
+      .muted { fill: #f3f4f6; stroke: #94a3b8; stroke-width: 2; stroke-dasharray: 8 6; rx: 12; ry: 12; }
+      .txt { font: 600 16px 'Inter', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #0f172a; }
+      .small { font: 500 13px 'Inter', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #475569; }
+      .tiny { font: 500 12px 'Inter', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #64748b; }
+      .arrow { stroke: #475569; stroke-width: 2.2; fill: none; marker-end: url(#arrow); }
+      .dashed { stroke-dasharray: 7 6; }
+      .label { font: 600 13px 'Inter', 'Noto Sans CJK SC', 'Microsoft YaHei', sans-serif; fill: #7c3aed; }
+    </style>
+    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+      <path d="M 0 0 L 12 6 L 0 12 z" fill="#475569" />
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="2000" height="980"/>
+  <rect class="panel" x="30" y="30" width="1940" height="920"/>
+  <text class="title" x="60" y="75">FlyGCL 代码流程图</text>
+  <text class="small" x="60" y="105">基于 main.py / _Trainer / datasets / models / methods 的实际执行路径整理</text>
+
+  <!-- Top flow -->
+  <rect class="box" x="70" y="140" width="180" height="70"/>
+  <text class="txt" x="160" y="170" text-anchor="middle">main.py</text>
+  <text class="tiny" x="160" y="190" text-anchor="middle">CLI 入口</text>
+
+  <rect class="box" x="290" y="140" width="240" height="70"/>
+  <text class="txt" x="410" y="170" text-anchor="middle">configuration.config</text>
+  <text class="tiny" x="410" y="190" text-anchor="middle">base_parser() / 参数定义</text>
+
+  <rect class="box" x="570" y="140" width="260" height="70"/>
+  <text class="txt" x="700" y="170" text-anchor="middle">methods.METHODS[method]</text>
+  <text class="tiny" x="700" y="190" text-anchor="middle">构建对应 Trainer</text>
+
+  <rect class="box" x="870" y="140" width="170" height="70"/>
+  <text class="txt" x="955" y="170" text-anchor="middle">_Trainer.run()</text>
+  <text class="tiny" x="955" y="190" text-anchor="middle">启动训练</text>
+
+  <path class="arrow" d="M 250 175 L 290 175"/>
+  <path class="arrow" d="M 530 175 L 570 175"/>
+  <path class="arrow" d="M 830 175 L 870 175"/>
+
+  <!-- Dataset panel -->
+  <rect class="panel" x="60" y="260" width="860" height="320"/>
+  <text class="sub" x="90" y="295">数据与采样 / Dataset &amp; Sampler</text>
+
+  <rect class="box2" x="90" y="325" width="240" height="68"/>
+  <text class="txt" x="210" y="355" text-anchor="middle">setup_distributed_dataset()</text>
+  <text class="tiny" x="210" y="375" text-anchor="middle">get_statistics() / DATASETS</text>
+
+  <rect class="box2" x="360" y="325" width="210" height="68"/>
+  <text class="txt" x="465" y="355" text-anchor="middle">train / test transforms</text>
+  <text class="tiny" x="465" y="375" text-anchor="middle">Resize / Crop / Normalize</text>
+
+  <rect class="box2" x="600" y="325" width="290" height="68"/>
+  <text class="txt" x="745" y="352" text-anchor="middle">torchvision / 自定义数据集</text>
+  <text class="tiny" x="745" y="374" text-anchor="middle">download=True, root=data_dir</text>
+
+  <rect class="box3" x="90" y="430" width="230" height="64"/>
+  <text class="txt" x="205" y="458" text-anchor="middle">OnlineSampler</text>
+  <text class="tiny" x="205" y="478" text-anchor="middle">训练流式采样</text>
+
+  <rect class="box3" x="350" y="430" width="240" height="64"/>
+  <text class="txt" x="470" y="458" text-anchor="middle">OnlineTestSampler</text>
+  <text class="tiny" x="470" y="478" text-anchor="middle">评估采样</text>
+
+  <rect class="box3" x="620" y="430" width="270" height="64"/>
+  <text class="txt" x="755" y="458" text-anchor="middle">类掩码 mask</text>
+  <text class="tiny" x="755" y="478" text-anchor="middle">屏蔽未见类别</text>
+
+  <path class="arrow" d="M 955 210 L 955 245 L 210 245 L 210 325"/>
+  <path class="arrow" d="M 330 359 L 360 359"/>
+  <path class="arrow" d="M 570 359 L 600 359"/>
+  <path class="arrow" d="M 210 393 L 210 430"/>
+  <path class="arrow" d="M 465 393 L 465 430"/>
+  <path class="arrow" d="M 745 393 L 745 430"/>
+
+  <!-- Model panel -->
+  <rect class="panel" x="980" y="260" width="960" height="320"/>
+  <text class="sub" x="1010" y="295">模型选择 / Model Selection</text>
+
+  <rect class="box2" x="1010" y="325" width="310" height="68"/>
+  <text class="txt" x="1165" y="353" text-anchor="middle">setup_distributed_model()</text>
+  <text class="tiny" x="1165" y="375" text-anchor="middle">select_model(method, backbone, ...)</text>
+
+  <rect class="box2" x="1350" y="325" width="180" height="68"/>
+  <text class="txt" x="1440" y="355" text-anchor="middle">method 分支</text>
+  <text class="tiny" x="1440" y="375" text-anchor="middle">FlyPrompt / L2P / ...</text>
+
+  <rect class="box" x="1560" y="325" width="340" height="68"/>
+  <text class="txt" x="1730" y="353" text-anchor="middle">models.vit 或 timm</text>
+  <text class="tiny" x="1730" y="375" text-anchor="middle">backbone + pretrained 权重</text>
+
+  <rect class="box3" x="1010" y="430" width="270" height="64"/>
+  <text class="txt" x="1145" y="458" text-anchor="middle">Prompt 模块</text>
+  <text class="tiny" x="1145" y="478" text-anchor="middle">pos_prompt 指定层插入 prompts</text>
+
+  <rect class="box3" x="1310" y="430" width="250" height="64"/>
+  <text class="txt" x="1435" y="458" text-anchor="middle">RPFC 路由头</text>
+  <text class="tiny" x="1435" y="478" text-anchor="middle">G / Q 累积 + 岭回归求解</text>
+
+  <rect class="box3" x="1590" y="430" width="320" height="64"/>
+  <text class="txt" x="1750" y="458" text-anchor="middle">backbone.fc / EMA heads</text>
+  <text class="tiny" x="1750" y="478" text-anchor="middle">在线分类头 + 时间集成</text>
+
+  <path class="arrow" d="M 1320 359 L 1350 359"/>
+  <path class="arrow" d="M 1530 359 L 1560 359"/>
+  <path class="arrow" d="M 1440 393 L 1440 430"/>
+  <path class="arrow" d="M 1165 393 L 1165 430"/>
+  <path class="arrow" d="M 1730 393 L 1730 430"/>
+
+  <!-- FlyPrompt internals -->
+  <rect class="panel" x="60" y="620" width="1880" height="280"/>
+  <text class="sub" x="90" y="655">FlyPrompt 内部流程 / FlyPrompt Internals</text>
+
+  <rect class="box" x="100" y="690" width="220" height="64"/>
+  <text class="txt" x="210" y="718" text-anchor="middle">online_train()</text>
+  <text class="tiny" x="210" y="738" text-anchor="middle">loss / backward / step</text>
+
+  <rect class="box2" x="360" y="690" width="260" height="64"/>
+  <text class="txt" x="490" y="718" text-anchor="middle">forward_with_rp()</text>
+  <text class="tiny" x="490" y="738" text-anchor="middle">expert_id 选择</text>
+
+  <rect class="box2" x="660" y="690" width="300" height="64"/>
+  <text class="txt" x="810" y="718" text-anchor="middle">forward_with_ema()</text>
+  <text class="tiny" x="810" y="738" text-anchor="middle">在线头 + EMA 头输出</text>
+
+  <rect class="box3" x="1000" y="690" width="250" height="64"/>
+  <text class="txt" x="1125" y="718" text-anchor="middle">process_task_count()</text>
+  <text class="tiny" x="1125" y="738" text-anchor="middle">更新路由/提示/头</text>
+
+  <rect class="box4" x="1290" y="690" width="260" height="64"/>
+  <text class="txt" x="1420" y="718" text-anchor="middle">online_evaluate()</text>
+  <text class="tiny" x="1420" y="738" text-anchor="middle">masked softmax + ensemble</text>
+
+  <rect class="box4" x="1590" y="690" width="300" height="64"/>
+  <text class="txt" x="1740" y="718" text-anchor="middle">结果 / logs / summary</text>
+  <text class="tiny" x="1740" y="738" text-anchor="middle">accuracy / A_avg / A_last</text>
+
+  <path class="arrow" d="M 320 722 L 360 722"/>
+  <path class="arrow" d="M 620 722 L 660 722"/>
+  <path class="arrow" d="M 960 722 L 1000 722"/>
+  <path class="arrow" d="M 1250 722 L 1290 722"/>
+  <path class="arrow" d="M 1550 722 L 1590 722"/>
+
+  <path class="arrow dashed" d="M 490 690 L 490 650 L 1750 650 L 1750 690"/>
+  <text class="label" x="1120" y="642" text-anchor="middle">评估时使用 RP 路由选 expert，再做 EMA 集成</text>
+
+  <!-- Footer -->
+  <text class="small" x="60" y="935">说明：该图不是源码逐行展开，而是按仓库实际入口与关键模块整理后的执行流程图。</text>
+</svg>

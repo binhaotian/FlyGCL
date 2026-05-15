@@ -709,6 +709,7 @@ def _create_vision_transformer(variant, pretrained=False, **kwargs):
         raise RuntimeError('features_only not implemented for Vision Transformer models.')
 
     pretrained_cfg = resolve_pretrained_cfg(variant, pretrained_cfg=kwargs.pop('pretrained_cfg', None))
+    manual_pretrained_path = None
 
     # For timm 1.0+, handle custom loading for .npz files
     # Check if we have a local .npz file in torch cache or ./checkpoints
@@ -749,15 +750,8 @@ def _create_vision_transformer(variant, pretrained=False, **kwargs):
 
             if npz_path:
                 _logger.info(f'Found local .npz file: {npz_path}')
-                # Set up pretrained_cfg to use custom loading with local file
-                if isinstance(pretrained_cfg, dict):
-                    pretrained_cfg['custom_load'] = True
-                    pretrained_cfg['url'] = str(npz_path)
-                    pretrained_cfg['file'] = str(npz_path)
-                else:
-                    pretrained_cfg.custom_load = True
-                    pretrained_cfg.url = str(npz_path)
-                    pretrained_cfg.file = str(npz_path)
+                manual_pretrained_path = str(npz_path)
+                pretrained = False
 
     _logger.info(pretrained_cfg)
 
@@ -766,6 +760,11 @@ def _create_vision_transformer(variant, pretrained=False, **kwargs):
         pretrained_cfg=pretrained_cfg,
         pretrained_filter_fn=checkpoint_filter_fn,
         **kwargs)
+
+    if manual_pretrained_path is not None:
+        _logger.info('Manually loading local .npz weights from %s', manual_pretrained_path)
+        _load_weights(model, manual_pretrained_path)
+
     return model
 
 

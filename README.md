@@ -207,6 +207,7 @@ results/
     seed_{seed}.npy
     seed_{seed}_eval.npy                 # if eval_period is enabled
     seed_{seed}_eval_time.npy            # if eval_period is enabled
+    stdout.log                           # direct `python main.py` runs mirror stdout here
 ```
 
 When running via `scripts/*.sh`, the console output is additionally captured by `tee` into:
