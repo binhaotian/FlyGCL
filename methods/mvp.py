@@ -1,6 +1,7 @@
 import copy
 import datetime
 import gc
+import json
 import logging
 import os
 import time
@@ -11,6 +12,11 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from methods._trainer import _Trainer
+from utils.router_eval import (
+    build_router_quality_summary,
+    compute_oracle_accuracies,
+    compute_router_metrics,
+)
 
 logger = logging.getLogger()
 
@@ -159,21 +165,116 @@ class MVP(_Trainer):
         return logit, loss
 
     def online_evaluate(self, test_loader, task_id=None, end=False):
-        total_correct, total_num_data, total_loss = 0.0, 0.0, 0.0
-        correct_l = torch.zeros(self.n_classes)
-        num_data_l = torch.zeros(self.n_classes)
-        label = []
-
         # If RPFC gating is enabled, update RPFC weights before evaluation.
         use_rp_gate = getattr(self.model_without_ddp, "use_rp_gate", False)
         rp_head = getattr(self.model_without_ddp, "rp_head", None)
         if use_rp_gate and rp_head is not None:
             self.model_without_ddp.rp_head.update()
 
-        # EMA classifier head bank (optional)
-        use_ema_head = getattr(self.model_without_ddp, "use_ema_head", False)
-
         self.model.eval()
+        router_mode = getattr(self, "router_mode", "learned")
+        log_router_trace = getattr(self, "log_router_trace", False)
+        analysis_router_quality = getattr(self, "analysis_router_quality", False)
+        oracle_modes = ["sample_oracle", "class_oracle", "worst"]
+        final_eval = end and (task_id is None or task_id == self.n_tasks - 1)
+
+        results_summary = {}
+        if router_mode in oracle_modes or (analysis_router_quality and final_eval):
+            results_summary = self._collect_mvp_oracle_results(test_loader)
+
+        eval_mode = router_mode if router_mode in ["learned", "random", "single"] else "learned"
+        eval_stats = self._evaluate_mvp_mode(
+            test_loader,
+            mode=eval_mode,
+            collect_trace=log_router_trace,
+            task_id=task_id,
+        )
+
+        avg_acc = eval_stats["avg_acc"]
+        if router_mode == "sample_oracle":
+            avg_acc = results_summary.get("A_sample_oracle", avg_acc)
+        elif router_mode == "class_oracle":
+            avg_acc = results_summary.get("A_class_oracle", avg_acc)
+        elif router_mode == "worst":
+            avg_acc = results_summary.get("A_worst", avg_acc)
+
+        if log_router_trace and self.is_main_process():
+            os.makedirs(self.log_dir, exist_ok=True)
+            trace_path = os.path.join(self.log_dir, f"router_trace_seed_{self.rnd_seed}.pt")
+            torch.save(eval_stats["traces"], trace_path)
+            logger.info("[MVP] Saved router trace to %s", trace_path)
+
+        if analysis_router_quality and self.is_main_process() and final_eval:
+            learned_stats = self._evaluate_mvp_mode(test_loader, mode="learned", collect_trace=True, task_id=task_id)
+            random_stats = self._evaluate_mvp_mode(test_loader, mode="random", collect_trace=False, task_id=task_id)
+            single_stats = self._evaluate_mvp_mode(test_loader, mode="single", collect_trace=False, task_id=task_id)
+
+            learned_traces = learned_stats["traces"]
+            metrics = compute_router_metrics(
+                [t["label"] for t in learned_traces],
+                [t["route_id"] for t in learned_traces],
+                [t["route_margin"] for t in learned_traces],
+                num_routes=self._mvp_num_routes(),
+            )
+            summary = build_router_quality_summary(
+                method="mvp",
+                dataset=self.dataset,
+                seed=self.rnd_seed,
+                A_learned=learned_stats["avg_acc"],
+                A_random=random_stats["avg_acc"],
+                A_single=single_stats["avg_acc"],
+                A_class_oracle=results_summary.get("A_class_oracle"),
+                A_sample_oracle=results_summary.get("A_sample_oracle"),
+                A_worst=results_summary.get("A_worst"),
+                metrics=metrics,
+            )
+            summary_path = os.path.join(self.log_dir, f"router_quality_summary_seed_{self.rnd_seed}.json")
+            with open(summary_path, "w", encoding="utf-8") as f:
+                json.dump(summary, f, indent=2)
+            logger.info("[MVP] Saved router quality summary to %s", summary_path)
+
+        eval_dict = {
+            "avg_loss": eval_stats["avg_loss"],
+            "avg_acc": avg_acc,
+            "cls_acc": eval_stats["cls_acc"],
+        }
+        return eval_dict
+
+    def _mvp_num_routes(self):
+        return int(getattr(self.model_without_ddp, "e_pool", getattr(self.model_without_ddp, "task_num", self.n_tasks)))
+
+    def _mvp_forward_logits(self, x, mode="learned", forced_route_ids=None):
+        use_ema_head = getattr(self.model_without_ddp, "use_ema_head", False)
+        with torch.cuda.amp.autocast(enabled=self.use_amp):
+            if use_ema_head:
+                logit_ls = self.model_without_ddp.forward_with_ema(
+                    x,
+                    expert_ids=forced_route_ids,
+                    router_mode=mode,
+                )
+                if getattr(self, "eval_ema_only", False):
+                    logit_ls = logit_ls[1:]
+                logit_ls = [logit + self.mask for logit in logit_ls]
+                logit = self._ensemble_logits(logit_ls)
+            else:
+                feature, mvp_mask = self.model_without_ddp.forward_features(
+                    x,
+                    forced_route_ids=forced_route_ids,
+                    router_mode=mode,
+                )
+                logit = self.model_without_ddp.forward_head(feature)
+                if self.use_mask:
+                    logit = logit * mvp_mask
+                logit = logit + self.mask
+        return logit
+
+    def _evaluate_mvp_mode(self, test_loader, mode="learned", collect_trace=False, task_id=None):
+        total_correct, total_num_data, total_loss = 0.0, 0.0, 0.0
+        correct_l = torch.zeros(self.n_classes)
+        num_data_l = torch.zeros(self.n_classes)
+        router_traces = []
+        sample_offset = 0
+
         with torch.no_grad():
             for i, data in enumerate(test_loader):
                 x, y = data
@@ -183,17 +284,9 @@ class MVP(_Trainer):
                 x = x.to(self.device)
                 y = y.to(self.device)
 
-                with torch.cuda.amp.autocast(enabled=self.use_amp):
-                    if use_ema_head:
-                        # Use EMA head bank (online + EMA heads) and ensemble
-                        logit_ls = self.model_without_ddp.forward_with_ema(x)
-                        logit_ls = [logit + self.mask for logit in logit_ls]
-                        logit = self._ensemble_logits(logit_ls)
-                    else:
-                        logit = self.model(x)
-                        logit = logit + self.mask
-
-                    loss = F.cross_entropy(logit, y)
+                logit = self._mvp_forward_logits(x, mode=mode)
+                loss = F.cross_entropy(logit, y)
+                sample_losses = F.cross_entropy(logit, y, reduction="none")
 
                 pred = torch.argmax(logit, dim=-1)
                 _, preds = logit.topk(self.topk, 1, True, True)
@@ -205,14 +298,90 @@ class MVP(_Trainer):
                 num_data_l += xlabel_cnt.detach().cpu()
 
                 total_loss += loss.mean().item()
-                label += y.tolist()
+                if collect_trace:
+                    route_ids = getattr(self.model_without_ddp, "last_route_ids", None)
+                    route_topk = getattr(self.model_without_ddp, "last_route_topk", None)
+                    score_matrix = getattr(self.model_without_ddp, "last_route_score_matrix", None)
+                    learned_topk = getattr(self.model_without_ddp, "last_learned_route_topk", None)
+                    margins = getattr(self.model_without_ddp, "last_route_margin", None)
+
+                    if route_ids is not None:
+                        route_ids = route_ids.detach().cpu()
+                        route_topk = route_topk.detach().cpu() if route_topk is not None else route_ids.unsqueeze(1)
+                        score_matrix = score_matrix.detach().cpu() if score_matrix is not None else None
+                        learned_topk = learned_topk.detach().cpu() if learned_topk is not None else route_topk
+                        for bi in range(x.size(0)):
+                            route_id = int(route_ids[bi].item())
+                            if score_matrix is None:
+                                route_scores = []
+                            else:
+                                route_scores = [float(v) for v in score_matrix[bi].tolist()]
+                            route_margin = float(margins[bi]) if margins is not None else 0.0
+                            router_traces.append({
+                                "sample_id": int(sample_offset + bi),
+                                "label": int(y[bi].item()),
+                                "pred": int(pred[bi].item()),
+                                "correct": bool(pred[bi].item() == int(y[bi].item())),
+                                "loss": float(sample_losses[bi].detach().cpu().item()),
+                                "method": getattr(self, "method", "mvp"),
+                                "dataset": getattr(self, "dataset", "cifar100"),
+                                "seed": int(self.rnd_seed),
+                                "eval_step": int(task_id) if task_id is not None else None,
+                                "batch_id": int(i),
+                                "router_mode": mode,
+                                "route_id": route_id,
+                                "route_topk": [int(v) for v in route_topk[bi].tolist()],
+                                "learned_route_topk": [int(v) for v in learned_topk[bi].tolist()],
+                                "route_scores": route_scores,
+                                "score_direction": "higher_is_better",
+                                "route_margin": route_margin,
+                            })
+                sample_offset += x.size(0)
 
         avg_acc = total_correct / total_num_data
         avg_loss = total_loss / len(test_loader)
         cls_acc = (correct_l / (num_data_l + 1e-5)).numpy().tolist()
 
-        eval_dict = {"avg_loss": avg_loss, "avg_acc": avg_acc, "cls_acc": cls_acc}
-        return eval_dict
+        return {
+            "avg_loss": avg_loss,
+            "avg_acc": avg_acc,
+            "cls_acc": cls_acc,
+            "traces": router_traces,
+        }
+
+    def _collect_mvp_oracle_results(self, test_loader):
+        n_routes = self._mvp_num_routes()
+        max_routes = getattr(self, "oracle_max_routes", -1)
+        if max_routes > 0:
+            n_routes = min(n_routes, max_routes)
+
+        per_route_logits = [[] for _ in range(n_routes)]
+        all_labels = []
+        oracle_batch_size = getattr(self, "oracle_batch_size", -1)
+
+        with torch.no_grad():
+            for data in test_loader:
+                x, y = data
+                for j in range(len(y)):
+                    y[j] = self.exposed_classes.index(y[j].item())
+
+                x = x.to(self.device)
+                y = y.to(self.device)
+                chunk_size = x.size(0) if oracle_batch_size <= 0 else oracle_batch_size
+
+                for start in range(0, x.size(0), chunk_size):
+                    x_sub = x[start:start + chunk_size]
+                    y_sub = y[start:start + chunk_size]
+                    batch_size = x_sub.size(0)
+                    for r in range(n_routes):
+                        route_ids = torch.full((batch_size,), r, dtype=torch.long, device=self.device)
+                        logit = self._mvp_forward_logits(x_sub, forced_route_ids=route_ids)
+                        per_route_logits[r].append(logit.detach().cpu())
+                    all_labels.append(y_sub.detach().cpu())
+
+        per_route_logits = [torch.cat(parts, dim=0) for parts in per_route_logits]
+        all_labels = torch.cat(all_labels, dim=0)
+        return compute_oracle_accuracies(per_route_logits, all_labels, n_classes=self.n_classes)
 
     def _ensemble_logits(self, logit_ls):
         """Ensemble a list of logits from online and EMA heads.

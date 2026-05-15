@@ -47,6 +47,16 @@ def compute_router_metrics(labels, routes, margins=None, num_routes=None):
     if num_routes is None:
         num_routes = int(max(routes.max() + 1, 1)) if routes.size > 0 else 0
 
+    if N == 0 or num_routes <= 0:
+        return {
+            "nmi": float("nan"),
+            "cond_entropy": float("nan"),
+            "util_entropy": float("nan"),
+            "dead_route_ratio": float("nan"),
+            "avg_margin": float("nan"),
+            "gini": float("nan"),
+        }
+
     # NMI
     if normalized_mutual_info_score is not None:
         try:
@@ -99,6 +109,136 @@ def compute_router_metrics(labels, routes, margins=None, num_routes=None):
         "avg_margin": float(avg_margin),
         "gini": float(gini),
     }
+
+
+def _as_float(x):
+    if x is None:
+        return None
+    if isinstance(x, torch.Tensor):
+        x = x.detach().cpu().item()
+    return float(x)
+
+
+def compute_oracle_accuracies(per_route_logits, labels, n_classes=None):
+    """Compute post-hoc route oracle diagnostics from route-forced logits.
+
+    Args:
+        per_route_logits: sequence of tensors, one [N, C] tensor per route.
+        labels: [N] tensor/list of integer labels in the model's class index space.
+        n_classes: optional class count. Defaults to logits.shape[-1].
+
+    Returns:
+        A dict with sample/class oracle and worst-router accuracies plus the
+        selected routes. The oracle routes are diagnostic upper/lower bounds;
+        they are not meant to be interpreted as ground-truth prompt labels.
+    """
+    if len(per_route_logits) == 0:
+        raise ValueError("per_route_logits must contain at least one route")
+
+    labels = torch.as_tensor(labels, dtype=torch.long).cpu()
+    stacked = torch.stack([x.detach().cpu() for x in per_route_logits], dim=0)
+    if stacked.ndim != 3:
+        raise ValueError(f"Expected [R, N, C] logits, got shape {tuple(stacked.shape)}")
+
+    num_routes, num_samples, inferred_classes = stacked.shape
+    if labels.numel() != num_samples:
+        raise ValueError(
+            f"labels length {labels.numel()} does not match logits samples {num_samples}"
+        )
+    if n_classes is None:
+        n_classes = inferred_classes
+
+    sample_idx = torch.arange(num_samples)
+    true_label_logits = stacked[:, sample_idx, labels]
+
+    best_sample_routes = torch.argmax(true_label_logits, dim=0)
+    sample_oracle_logits = stacked[best_sample_routes, sample_idx]
+    sample_oracle_pred = torch.argmax(sample_oracle_logits, dim=1)
+    A_sample_oracle = (sample_oracle_pred == labels).float().mean().item()
+
+    worst_sample_routes = torch.argmin(true_label_logits, dim=0)
+    worst_logits = stacked[worst_sample_routes, sample_idx]
+    worst_pred = torch.argmax(worst_logits, dim=1)
+    A_worst = (worst_pred == labels).float().mean().item()
+
+    class_best_routes = torch.zeros(n_classes, dtype=torch.long)
+    for c in range(n_classes):
+        cls_mask = labels == c
+        if not torch.any(cls_mask):
+            continue
+        cls_logits = stacked[:, cls_mask, :]
+        cls_labels = labels[cls_mask]
+        cls_pred = torch.argmax(cls_logits, dim=2)
+        route_acc = (cls_pred == cls_labels.unsqueeze(0)).float().mean(dim=1)
+
+        # Break accuracy ties by the mean true-label logit, matching the
+        # sample-oracle objective as closely as possible.
+        mean_true_logit = true_label_logits[:, cls_mask].mean(dim=1)
+        tie_break_score = route_acc + mean_true_logit * 1e-12
+        class_best_routes[c] = int(torch.argmax(tie_break_score).item())
+
+    class_routes_per_sample = class_best_routes[labels]
+    class_oracle_logits = stacked[class_routes_per_sample, sample_idx]
+    class_oracle_pred = torch.argmax(class_oracle_logits, dim=1)
+    A_class_oracle = (class_oracle_pred == labels).float().mean().item()
+
+    return {
+        "A_sample_oracle": float(A_sample_oracle),
+        "A_class_oracle": float(A_class_oracle),
+        "A_worst": float(A_worst),
+        "sample_oracle_routes": best_sample_routes.tolist(),
+        "class_oracle_routes": class_best_routes.tolist(),
+        "class_oracle_routes_per_sample": class_routes_per_sample.tolist(),
+        "worst_routes": worst_sample_routes.tolist(),
+        "sample_oracle_pred": sample_oracle_pred.tolist(),
+        "class_oracle_pred": class_oracle_pred.tolist(),
+        "worst_pred": worst_pred.tolist(),
+    }
+
+
+def build_router_quality_summary(
+    method,
+    dataset,
+    seed,
+    A_learned,
+    A_random,
+    A_single=None,
+    A_class_oracle=None,
+    A_sample_oracle=None,
+    A_worst=None,
+    metrics=None,
+):
+    eps = 1e-8
+    metrics = metrics or {}
+
+    def maybe_gap(a, b):
+        if a is None or b is None:
+            return None
+        return float(a - b)
+
+    summary = {
+        "method": method,
+        "dataset": dataset,
+        "seed": int(seed),
+        "A_learned": _as_float(A_learned),
+        "A_random": _as_float(A_random),
+        "A_single": _as_float(A_single),
+        "A_class_oracle": _as_float(A_class_oracle),
+        "A_sample_oracle": _as_float(A_sample_oracle),
+        "A_worst": _as_float(A_worst),
+        "RQI_class": None,
+        "RQI_sample": None,
+        "router_utility": maybe_gap(A_learned, A_random),
+        "oracle_gap_sample": maybe_gap(A_sample_oracle, A_learned),
+        "capacity_gap_sample": maybe_gap(A_sample_oracle, A_single),
+    }
+    if A_class_oracle is not None:
+        summary["RQI_class"] = float((A_learned - A_random) / (A_class_oracle - A_random + eps))
+    if A_sample_oracle is not None:
+        summary["RQI_sample"] = float((A_learned - A_random) / (A_sample_oracle - A_random + eps))
+
+    summary.update(metrics)
+    return summary
 
 
 if __name__ == '__main__':

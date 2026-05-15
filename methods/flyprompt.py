@@ -6,8 +6,13 @@ from typing import Dict, List
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
-from utils.router_eval import compute_router_metrics
+from utils.router_eval import (
+    build_router_quality_summary,
+    compute_oracle_accuracies,
+    compute_router_metrics,
+)
 
 from methods._trainer import _Trainer
 
@@ -193,10 +198,15 @@ class FlyPrompt(_Trainer):
         router_mode = getattr(self, 'router_mode', 'learned')
         log_router_trace = getattr(self, 'log_router_trace', False)
         analysis_router_quality = getattr(self, 'analysis_router_quality', False)
+        oracle_modes = ['sample_oracle', 'class_oracle', 'worst']
+        final_eval = end and (task_id is None or task_id == self.n_tasks - 1)
+        results_summary = {}
 
         self.model.eval()
-        # If doing oracle-style modes, we need to accumulate logits per-route across dataset
-        do_oracle_all = router_mode in ['sample_oracle', 'class_oracle', 'worst'] or analysis_router_quality
+        # Oracle route enumeration is expensive. Run it for explicit oracle
+        # modes, or once at the final evaluation when router-quality analysis
+        # is requested.
+        do_oracle_all = router_mode in oracle_modes or (analysis_router_quality and final_eval)
 
         if do_oracle_all:
             # We'll accumulate per-route logits and labels across dataset
@@ -210,6 +220,7 @@ class FlyPrompt(_Trainer):
             per_route_logits = [ [] for _ in range(n_routes) ]
             all_labels = []
 
+            oracle_batch_size = getattr(self, 'oracle_batch_size', -1)
             with torch.no_grad():
                 for i, data in enumerate(test_loader):
                     x, y = data
@@ -218,86 +229,40 @@ class FlyPrompt(_Trainer):
 
                     x = x.to(self.device)
                     y = y.to(self.device)
-                    batch_size = x.size(0)
+                    chunk_size = x.size(0) if oracle_batch_size <= 0 else oracle_batch_size
 
-                    # For each candidate route, force the expert and get ensembled logits
-                    for r in range(n_routes):
-                        expert_ids = torch.full((batch_size,), r, dtype=torch.long, device=self.device)
-                        logit_ls = self.model_without_ddp.forward_with_ema(x, expert_ids=expert_ids)
-                        if getattr(self, "eval_ema_only", False):
-                            logit_ls = logit_ls[1:]
-                        logit_ls = [logit + self.mask for logit in logit_ls]
-                        logit = self._ensemble_logits(logit_ls)
-                        per_route_logits[r].append(logit.detach().cpu())
+                    for start in range(0, x.size(0), chunk_size):
+                        x_sub = x[start:start + chunk_size]
+                        y_sub = y[start:start + chunk_size]
+                        batch_size = x_sub.size(0)
 
-                    all_labels.append(y.detach().cpu())
+                        # For each candidate route, force the expert and get ensembled logits.
+                        for r in range(n_routes):
+                            expert_ids = torch.full((batch_size,), r, dtype=torch.long, device=self.device)
+                            logit_ls = self.model_without_ddp.forward_with_ema(x_sub, expert_ids=expert_ids)
+                            if getattr(self, "eval_ema_only", False):
+                                logit_ls = logit_ls[1:]
+                            logit_ls = [logit + self.mask for logit in logit_ls]
+                            logit = self._ensemble_logits(logit_ls)
+                            per_route_logits[r].append(logit.detach().cpu())
+
+                        all_labels.append(y_sub.detach().cpu())
 
             # Concatenate per-route logits into full dataset tensors
             per_route_logits = [torch.cat(lst, dim=0) if len(lst)>0 else torch.empty((0,self.n_classes)) for lst in per_route_logits]
             all_labels = torch.cat(all_labels, dim=0)
 
-            # If only doing oracle metrics (analysis), compute the accuracies for different modes
-            if analysis_router_quality and self.is_main_process() and end:
-                results_summary = {}
-                # Learned / Random / Single evaluated via separate pass below
-                # Compute sample_oracle / class_oracle / worst using per_route_logits
-                N = all_labels.size(0)
-                labels_np = all_labels.numpy()
-
-                # Sample-oracle
-                stacked = torch.stack(per_route_logits, dim=0)  # [R, N, C]
-                true_logits = stacked[:, :, :]
-                # pick best route per sample by true-label logit
-                true_label_indices = labels_np.astype(int)
-                # build array [R, N] of true-label logits
-                true_label_logits = np.stack([true_logits[r, np.arange(N), true_label_indices] .numpy() for r in range(stacked.size(0))], axis=0)
-                best_r_per_sample = np.argmax(true_label_logits, axis=0)
-                oracle_logits = np.zeros((N, self.n_classes), dtype=np.float32)
-                for i_sample in range(N):
-                    rsel = int(best_r_per_sample[i_sample])
-                    oracle_logits[i_sample] = per_route_logits[rsel][i_sample].numpy()
-                preds_oracle = np.argmax(oracle_logits, axis=1)
-                A_sample_oracle = float((preds_oracle == labels_np).mean())
-
-                # Worst router
-                worst_r_per_sample = np.argmin(true_label_logits, axis=0)
-                worst_logits = np.zeros((N, self.n_classes), dtype=np.float32)
-                for i_sample in range(N):
-                    rsel = int(worst_r_per_sample[i_sample])
-                    worst_logits[i_sample] = per_route_logits[rsel][i_sample].numpy()
-                preds_worst = np.argmax(worst_logits, axis=1)
-                A_worst = float((preds_worst == labels_np).mean())
-
-                # Class-oracle: choose best route per class by mean true-logit
-                R = len(per_route_logits)
-                C = self.n_classes
-                class_best = np.zeros(C, dtype=int)
-                for c in range(C):
-                    idxs = np.where(labels_np == c)[0]
-                    if idxs.size == 0:
-                        class_best[c] = 0
-                        continue
-                    mean_true_logits = [per_route_logits[r][idxs, c].mean().item() for r in range(R)]
-                    class_best[c] = int(np.argmax(mean_true_logits))
-
-                class_oracle_logits = np.zeros((N, C), dtype=np.float32)
-                for i_sample in range(N):
-                    c = int(labels_np[i_sample])
-                    rsel = int(class_best[c])
-                    class_oracle_logits[i_sample] = per_route_logits[rsel][i_sample].numpy()
-                preds_class_oracle = np.argmax(class_oracle_logits, axis=1)
-                A_class_oracle = float((preds_class_oracle == labels_np).mean())
-
-                results_summary['A_sample_oracle'] = A_sample_oracle
-                results_summary['A_class_oracle'] = A_class_oracle
-                results_summary['A_worst'] = A_worst
-                # Save partial summary (learned/random/single will be added below)
-            # end analysis_router_quality block
+            results_summary = compute_oracle_accuracies(
+                per_route_logits,
+                all_labels,
+                n_classes=self.n_classes,
+            )
 
         # Non-oracle or learned/random/single evaluation path
         total_correct, total_num_data, total_loss = 0.0, 0.0, 0.0
         label = []
         router_traces = []
+        sample_offset = 0
 
         with torch.no_grad():
             for i, data in enumerate(test_loader):
@@ -406,6 +371,7 @@ class FlyPrompt(_Trainer):
                 logit = self._ensemble_logits(logit_ls)
 
                 loss = self.criterion(logit, y)
+                sample_losses = F.cross_entropy(logit, y, reduction='none')
                 pred = torch.argmax(logit, dim=-1)
                 _, preds = logit.topk(self.topk, 1, True, True)
                 total_correct += torch.sum(preds == y.unsqueeze(1)).item()
@@ -413,25 +379,35 @@ class FlyPrompt(_Trainer):
 
                 # router trace logging
                 if log_router_trace:
-                    # logit_raw: [B, R]
-                    topk_scores, topk_idx = torch.topk(logit_raw, k=min(2, logit_raw.size(1)), dim=-1)
-                    topk_idx = topk_idx.detach().cpu().tolist()
-                    topk_scores = topk_scores.detach().cpu().tolist()
-                    margins = [s[0] - (s[1] if len(s) > 1 else -1e9) for s in topk_scores]
+                    score_k = logit_raw.size(1)
+                    topk_scores, topk_idx = torch.topk(logit_raw, k=score_k, dim=-1)
+                    learned_topk_idx = topk_idx.detach().cpu().tolist()
+                    learned_topk_scores = topk_scores.detach().cpu().tolist()
+                    all_scores = logit_raw.detach().cpu().tolist()
+                    margins = [
+                        s[0] - s[1] if len(s) > 1 else 0.0
+                        for s in learned_topk_scores
+                    ]
                     for bi in range(x.size(0)):
+                        selected_route = int(expert_ids[bi].item())
                         trace = {
-                            'sample_id': None,
+                            'sample_id': int(sample_offset + bi),
                             'label': int(y[bi].item()),
                             'pred': int(pred[bi].item()),
                             'correct': bool(pred[bi].item() == int(y[bi].item())),
-                            'loss': float(loss.detach().cpu().item()),
+                            'loss': float(sample_losses[bi].detach().cpu().item()),
                             'method': getattr(self, 'method', 'flyprompt'),
                             'dataset': getattr(self, 'dataset', 'cifar100'),
                             'seed': int(self.rnd_seed),
-                            'eval_step': i,
-                            'route_id': int(expert_ids[bi].item()),
-                            'route_topk': topk_idx[bi],
-                            'route_scores': topk_scores[bi],
+                            'eval_step': int(task_id) if task_id is not None else None,
+                            'batch_id': int(i),
+                            'router_mode': router_mode,
+                            'route_id': selected_route,
+                            'route_topk': learned_topk_idx[bi] if router_mode == 'learned' else [selected_route],
+                            'learned_route_topk': learned_topk_idx[bi],
+                            'route_scores': all_scores[bi],
+                            'learned_route_scores_sorted': learned_topk_scores[bi],
+                            'score_direction': 'higher_is_better',
                             'route_margin': float(margins[bi]),
                         }
                         router_traces.append(trace)
@@ -442,13 +418,14 @@ class FlyPrompt(_Trainer):
 
                 total_loss += loss.item()
                 label += y.tolist()
+                sample_offset += x.size(0)
 
         avg_acc = total_correct / total_num_data
         avg_loss = total_loss / len(test_loader)
         cls_acc = (correct_l / (num_data_l + 1e-5)).numpy().tolist()
 
         # If oracle modes were precomputed and router_mode is oracle, derive the accuracy for this router_mode
-        if do_oracle_all and router_mode in ['sample_oracle', 'class_oracle', 'worst'] and self.is_main_process() and end:
+        if do_oracle_all and router_mode in oracle_modes:
             # use previously computed values
             if router_mode == 'sample_oracle':
                 avg_acc = results_summary.get('A_sample_oracle', avg_acc)
@@ -459,9 +436,8 @@ class FlyPrompt(_Trainer):
 
         # Save router trace if requested
         if log_router_trace and self.is_main_process():
-            out_dir = os.path.join(self.log_dir, f"{self.dataset}", self.note)
-            os.makedirs(out_dir, exist_ok=True)
-            trace_path = os.path.join(out_dir, f"router_trace_seed_{self.rnd_seed}.pt")
+            os.makedirs(self.log_dir, exist_ok=True)
+            trace_path = os.path.join(self.log_dir, f"router_trace_seed_{self.rnd_seed}.pt")
             try:
                 torch.save(router_traces, trace_path)
                 logger.info("[FlyPrompt] Saved router trace to %s", trace_path)
@@ -469,12 +445,15 @@ class FlyPrompt(_Trainer):
                 logger.exception("[FlyPrompt] Failed to save router trace: %s", e)
 
         # If doing analysis, compute learned/random/single accuracies and save summary JSON
-        if analysis_router_quality and self.is_main_process() and end:
+        if analysis_router_quality and self.is_main_process() and final_eval:
             import json
             # evaluate learned/random/single accuracies
-            def eval_mode_acc(mode):
+            def eval_mode_acc(mode, collect_routes=False):
                 corr = 0
                 total = 0
+                route_records = []
+                label_records = []
+                margin_records = []
                 with torch.no_grad():
                     for data in test_loader:
                         x, y = data
@@ -499,9 +478,21 @@ class FlyPrompt(_Trainer):
                         pred = torch.argmax(logit, dim=-1)
                         corr += (pred == y).sum().item()
                         total += y.size(0)
-                return float(corr / max(1, total))
+                        if collect_routes:
+                            sorted_scores, _ = torch.topk(logit_raw, k=min(2, logit_raw.size(1)), dim=-1)
+                            route_records.extend(expert_ids.detach().cpu().tolist())
+                            label_records.extend(y.detach().cpu().tolist())
+                            if sorted_scores.size(1) > 1:
+                                margins = sorted_scores[:, 0] - sorted_scores[:, 1]
+                            else:
+                                margins = torch.zeros_like(sorted_scores[:, 0])
+                            margin_records.extend(margins.detach().cpu().tolist())
+                acc = float(corr / max(1, total))
+                if collect_routes:
+                    return acc, route_records, label_records, margin_records
+                return acc
 
-            A_learned = eval_mode_acc('learned')
+            A_learned, learned_routes, learned_labels, learned_margins = eval_mode_acc('learned', collect_routes=True)
             A_random = eval_mode_acc('random')
             A_single = eval_mode_acc('single')
 
@@ -510,42 +501,33 @@ class FlyPrompt(_Trainer):
             A_class_oracle = results_summary.get('A_class_oracle', None)
             A_worst = results_summary.get('A_worst', None)
 
-            # compute RQIs
-            eps = 1e-8
-            RQI_sample = (A_learned - A_random) / ( (A_sample_oracle - A_random) + eps) if A_sample_oracle is not None else None
-            RQI_class = (A_learned - A_random) / ( (A_class_oracle - A_random) + eps) if A_class_oracle is not None else None
-
             # router metrics from traces (use learned routes)
             try:
-                routes_used = [t['route_id'] for t in router_traces]
-                labels_used = [t['label'] for t in router_traces]
-                margins_used = [t['route_margin'] for t in router_traces]
-                metrics = compute_router_metrics(labels_used, routes_used, margins_used, num_routes=getattr(self.model_without_ddp, 'task_num', self.n_tasks))
+                metrics = compute_router_metrics(
+                    learned_labels,
+                    learned_routes,
+                    learned_margins,
+                    num_routes=getattr(self.model_without_ddp, 'task_num', self.n_tasks),
+                )
             except Exception as e:
                 logger.exception("[FlyPrompt] Failed to compute router metrics: %s", e)
                 metrics = {}
 
-            summary = {
-                "method": "flyprompt",
-                "dataset": self.dataset,
-                "seed": int(self.rnd_seed),
-                "A_learned": A_learned,
-                "A_random": A_random,
-                "A_single": A_single,
-                "A_class_oracle": A_class_oracle,
-                "A_sample_oracle": A_sample_oracle,
-                "A_worst": A_worst,
-                "RQI_class": RQI_class,
-                "RQI_sample": RQI_sample,
-                "router_utility": A_learned - A_random,
-                "oracle_gap_sample": (A_sample_oracle - A_learned) if A_sample_oracle is not None else None,
-                "capacity_gap_sample": (A_sample_oracle - A_single) if A_sample_oracle is not None else None,
-            }
-            summary.update(metrics)
+            summary = build_router_quality_summary(
+                method="flyprompt",
+                dataset=self.dataset,
+                seed=self.rnd_seed,
+                A_learned=A_learned,
+                A_random=A_random,
+                A_single=A_single,
+                A_class_oracle=A_class_oracle,
+                A_sample_oracle=A_sample_oracle,
+                A_worst=A_worst,
+                metrics=metrics,
+            )
 
-            out_dir = os.path.join(self.log_dir, f"{self.dataset}", self.note)
-            os.makedirs(out_dir, exist_ok=True)
-            summary_path = os.path.join(out_dir, f"router_quality_summary_seed_{self.rnd_seed}.json")
+            os.makedirs(self.log_dir, exist_ok=True)
+            summary_path = os.path.join(self.log_dir, f"router_quality_summary_seed_{self.rnd_seed}.json")
             with open(summary_path, 'w', encoding='utf-8') as f:
                 json.dump(summary, f, indent=2)
             logger.info("[FlyPrompt] Saved router quality summary to %s", summary_path)

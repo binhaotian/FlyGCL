@@ -224,18 +224,35 @@ class MVP(nn.Module):
             mass = 1.0
         scaled_distance = distance * mass
 
+        route_score_matrix = -scaled_distance
+
         # Gating: use RPFC at evaluation if enabled, otherwise use original MVP key routing.
         if forced_route_ids is not None:
             # forced_route_ids should be shape [B] with integer route ids
             if self.selection_size != 1:
                 raise NotImplementedError("forced_route_ids only supported for selection_size=1 in MVP for now")
             topk = forced_route_ids.unsqueeze(1).long()
+        elif router_mode == "random":
+            if self.selection_size != 1:
+                raise NotImplementedError("router_mode=random only supports selection_size=1 in MVP for now")
+            topk = torch.randint(0, self.e_pool, (B, 1), device=inputs.device)
+        elif router_mode == "single":
+            if self.selection_size != 1:
+                raise NotImplementedError("router_mode=single only supports selection_size=1 in MVP for now")
+            topk = torch.zeros((B, 1), dtype=torch.long, device=inputs.device)
         elif getattr(self, "use_rp_gate", False) and (not self.training) and (self.rp_head is not None):
             # Only consider tasks that have been seen so far
             E = min(self.task_count + 1, self.task_num)
             logits = self.rp_head(query)  # [B, task_num]
             logits = logits[:, :E]
             topk = torch.topk(logits, self.selection_size, dim=1, largest=True)[1]
+            route_score_matrix = torch.full(
+                (B, self.e_pool),
+                -float("inf"),
+                dtype=logits.dtype,
+                device=logits.device,
+            )
+            route_score_matrix[:, :E] = logits
         else:
             topk = scaled_distance.topk(self.selection_size, dim=1, largest=False)[1]
 
@@ -243,18 +260,24 @@ class MVP(nn.Module):
         # last_route_ids: top-1 id
         self.last_route_topk = topk.detach().clone()
         self.last_route_ids = topk[:, 0].detach().clone()
-        # route scores: convert distance -> score (higher is better)
-        # We compute negated scaled_distance as scores
+        # route scores: higher is better. For key routing this is negative
+        # scaled distance; for RP gating it is the RPFC logit.
         with torch.no_grad():
-            scores_topk = (-scaled_distance).gather(1, topk)
-            # margin: top1 - top2
-            if self.selection_size >= 2:
-                top1 = scores_topk[:, 0]
-                top2 = scores_topk[:, 1]
-                self.last_route_margin = (top1 - top2).detach().cpu().numpy().tolist()
+            self.last_route_score_matrix = route_score_matrix.detach().clone()
+            scores_topk = route_score_matrix.gather(1, topk)
+            sorted_scores, sorted_idx = torch.topk(
+                route_score_matrix,
+                k=min(2, route_score_matrix.size(1)),
+                dim=1,
+                largest=True,
+            )
+            self.last_learned_route_topk = sorted_idx.detach().clone()
+            if sorted_scores.size(1) >= 2:
+                margins = sorted_scores[:, 0] - sorted_scores[:, 1]
             else:
-                # no second choice
-                self.last_route_margin = [float(s) for s in (scores_topk[:, 0].detach().cpu().numpy())]
+                margins = torch.zeros_like(sorted_scores[:, 0])
+            margins = torch.where(torch.isfinite(margins), margins, torch.zeros_like(margins))
+            self.last_route_margin = margins.detach().cpu().numpy().tolist()
             self.last_route_scores = scores_topk.detach().cpu().tolist()
 
         if self.use_ema_head and self.num_ema > 0:
@@ -310,7 +333,7 @@ class MVP(nn.Module):
     def get_e_prompt_count(self):
         return self.count
 
-    def forward_with_ema(self, inputs: torch.Tensor, expert_ids: torch.Tensor = None) -> list:
+    def forward_with_ema(self, inputs: torch.Tensor, expert_ids: torch.Tensor = None, router_mode: str = "learned") -> list:
         """Forward with online head and EMA classifier heads.
 
         Returns a list of logits [online, ema_1, ema_2, ...] before adding
@@ -321,7 +344,7 @@ class MVP(nn.Module):
         if expert_ids is not None:
             feature, mask = self.forward_features(inputs, forced_route_ids=expert_ids)
         else:
-            feature, mask = self.forward_features(inputs)
+            feature, mask = self.forward_features(inputs, router_mode=router_mode)
 
         # Online head
         feat_norm = self.backbone.fc_norm(feature)

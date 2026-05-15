@@ -40,8 +40,11 @@ class Prompt(nn.Module):
         # Cache for last prompt selection (used by DualPrompt EMA experts)
         self.last_topk = None
         self.last_selected_indices = None
+        self.last_route_score_matrix = None
+        self.last_route_scores = None
+        self.last_route_margin = None
 
-    def forward(self, query: torch.Tensor, s=None, e=None, **kwargs):
+    def forward(self, query: torch.Tensor, s=None, e=None, forced_indices: torch.Tensor = None, **kwargs):
 
         B, D = query.shape
         assert D == self.dimention, f"Query dimention {D} does not match prompt dimention {self.dimention}"
@@ -59,11 +62,24 @@ class Prompt(nn.Module):
         else:
             scores = match
 
-        # Top-k over the (possibly sliced) pool; topk is in local slice coordinates
-        _, topk = scores.topk(self.selection_size, dim=-1, largest=False, sorted=True)
+        # Top-k over the (possibly sliced) pool; topk is in local slice coordinates.
+        # Lower distance is better, but traces use negative distance as a
+        # higher-is-better score.
+        if forced_indices is None:
+            _, topk = scores.topk(self.selection_size, dim=-1, largest=False, sorted=True)
+        else:
+            forced_indices = forced_indices.to(query.device).long()
+            if forced_indices.ndim == 1:
+                forced_indices = forced_indices.unsqueeze(1)
+            if forced_indices.size(1) != self.selection_size:
+                raise ValueError(
+                    f"forced_indices must have selection_size={self.selection_size}, "
+                    f"got {forced_indices.size(1)}"
+                )
+            topk = forced_indices if s is None else forced_indices - s
 
         # Batch-wise prompt selection (still in local slice coordinates)
-        if self._batchwise_selection:
+        if forced_indices is None and self._batchwise_selection:
             idx, counts = topk.unique(sorted=True, return_counts=True)
             _, mosts = counts.topk(self.selection_size, largest=True, sorted=True)
             topk = idx[mosts].clone().expand(B, -1)
@@ -77,6 +93,26 @@ class Prompt(nn.Module):
         # Record last selected prompt indices (global indices over the pool)
         self.last_topk = topk.detach()
         self.last_selected_indices = indices.detach()
+        with torch.no_grad():
+            if s is None:
+                score_matrix = -match
+            else:
+                score_matrix = torch.full(
+                    (B, self.pool_size),
+                    -float("inf"),
+                    dtype=match.dtype,
+                    device=match.device,
+                )
+                score_matrix[:, s:e] = -match
+            self.last_route_score_matrix = score_matrix.detach()
+            self.last_route_scores = score_matrix.gather(1, indices).detach()
+            sorted_scores, _ = torch.topk(score_matrix, k=min(2, score_matrix.size(1)), dim=1)
+            if sorted_scores.size(1) > 1:
+                margins = sorted_scores[:, 0] - sorted_scores[:, 1]
+            else:
+                margins = torch.zeros_like(sorted_scores[:, 0])
+            margins = torch.where(torch.isfinite(margins), margins, torch.zeros_like(margins))
+            self.last_route_margin = margins.detach()
 
         # Frequency counter over the global pool indices
         self.counter += torch.bincount(indices.reshape(-1).clone(), minlength=self.pool_size)
@@ -154,7 +190,7 @@ class L2P(nn.Module):
 
         self.register_buffer('similarity', torch.zeros(1), persistent=False)
 
-    def forward(self, inputs : torch.Tensor, **kwargs) -> torch.Tensor:
+    def forward(self, inputs : torch.Tensor, forced_route_ids: torch.Tensor = None, router_mode: str = "learned", **kwargs) -> torch.Tensor:
         self.backbone.eval()
         x = self.backbone.patch_embed(inputs)
         B, N, D = x.size()
@@ -164,7 +200,23 @@ class L2P(nn.Module):
             x = self.backbone.pos_drop(token_appended + self.backbone.pos_embed)
             query = self.backbone.blocks(x)
             query = self.backbone.norm(query)[:, 0].clone()
-        similarity, prompts = self.prompt(query)
+        forced_indices = None
+        if forced_route_ids is not None:
+            forced_indices = forced_route_ids
+        elif router_mode == "random":
+            forced_indices = torch.stack(
+                [
+                    torch.randperm(self.prompt.pool_size, device=inputs.device)[:self.selection_size]
+                    for _ in range(B)
+                ],
+                dim=0,
+            )
+        elif router_mode == "single":
+            forced_indices = torch.arange(self.selection_size, device=inputs.device).unsqueeze(0).expand(B, -1)
+        elif router_mode in {"sample_oracle", "class_oracle", "worst"}:
+            raise NotImplementedError("L2P route oracle over prompt combinations is not implemented")
+
+        similarity, prompts = self.prompt(query, forced_indices=forced_indices)
         self.similarity = similarity.mean()
         prompts = prompts.contiguous().view(B, self.selection_size * self.prompt_len, D)
         prompts = prompts + self.backbone.pos_embed[:,0].clone().expand(self.selection_size * self.prompt_len, -1)
