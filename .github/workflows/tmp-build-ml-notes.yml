@@ -13,12 +13,31 @@ jobs:
           sudo apt-get update -qq >/dev/null
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq texlive-xetex texlive-lang-chinese texlive-latex-extra >/dev/null 2>&1
       - name: Build PDF
+        id: build
+        continue-on-error: true
         working-directory: tmp_pdf
         run: |
           sed -i '/\\usepackage{microtype}/a \\tcbuselibrary{breakable,skins}' ml_notes_retypeset.tex
-          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build.out 2>&1 || (cat build.out && tail -n 80 ml_notes_retypeset.log && exit 1)
-          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build2.out 2>&1 || (cat build2.out && tail -n 80 ml_notes_retypeset.log && exit 1)
-      - uses: actions/upload-artifact@v4
+          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build.out 2>&1
+          STATUS=$?
+          if [ $STATUS -eq 0 ]; then
+            xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build2.out 2>&1
+            STATUS=$?
+          fi
+          tail -n 160 ml_notes_retypeset.log >build_tail.txt || true
+          exit $STATUS
+      - name: Upload PDF
+        if: steps.build.outcome == 'success'
+        uses: actions/upload-artifact@v4
         with:
           name: ml-notes-pdf
           path: tmp_pdf/ml_notes_retypeset.pdf
+      - name: Upload diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ml-notes-build-log
+          path: |
+            tmp_pdf/build.out
+            tmp_pdf/build2.out
+            tmp_pdf/build_tail.txt
