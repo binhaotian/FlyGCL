@@ -15,8 +15,9 @@ jobs:
       - name: Build PDF
         working-directory: tmp_pdf
         run: |
-          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex
-          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex
+          sed -i '/\\usepackage{microtype}/a \\tcbuselibrary{breakable,skins}' ml_notes_retypeset.tex
+          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex || (tail -n 120 ml_notes_retypeset.log && exit 1)
+          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex || (tail -n 120 ml_notes_retypeset.log && exit 1)
       - uses: actions/upload-artifact@v4
         with:
           name: ml-notes-pdf
