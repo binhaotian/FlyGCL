@@ -1,0 +1,23 @@
+name: Temporary ML Notes PDF Build
+on:
+  pull_request:
+    branches: [ main ]
+jobs:
+  build-pdf:
+    if: github.head_ref == 'tmp-ml-notes-pdf-20260626'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install TeX
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-xetex texlive-lang-chinese texlive-latex-extra
+      - name: Build PDF
+        working-directory: tmp_pdf
+        run: |
+          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex
+          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ml-notes-pdf
+          path: tmp_pdf/ml_notes_retypeset.pdf
