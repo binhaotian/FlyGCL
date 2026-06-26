@@ -27,11 +27,12 @@ jobs:
           tail -n 160 ml_notes_retypeset.log >build_tail.txt || true
           exit $STATUS
       - name: Upload PDF
-        if: steps.build.outcome == 'success'
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ml-notes-pdf
           path: tmp_pdf/ml_notes_retypeset.pdf
+          if-no-files-found: error
       - name: Upload diagnostics
         if: always()
         uses: actions/upload-artifact@v4
