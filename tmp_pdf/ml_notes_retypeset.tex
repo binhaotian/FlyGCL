@@ -1,0 +1,690 @@
+\documentclass[9pt,a4paper,UTF8]{ctexart}
+\usepackage[left=13mm,right=13mm,top=14mm,bottom=14mm]{geometry}
+\usepackage{amsmath,amssymb,bm,booktabs,tabularx,array,multicol,enumitem,xcolor,tcolorbox,fancyhdr,titlesec,hyperref}
+\usepackage{microtype}
+\setlength{\columnsep}{7mm}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2.5pt}
+\setlist[itemize]{leftmargin=1.5em,itemsep=1pt,topsep=2pt,parsep=0pt}
+\setlist[enumerate]{leftmargin=1.7em,itemsep=1pt,topsep=2pt,parsep=0pt}
+\definecolor{navy}{HTML}{17324D}
+\definecolor{teal}{HTML}{0F766E}
+\definecolor{light}{HTML}{F1F5F9}
+\definecolor{line}{HTML}{CBD5E1}
+\definecolor{orange}{HTML}{D97706}
+\definecolor{red}{HTML}{B91C1C}
+\definecolor{ink}{HTML}{172033}
+\color{ink}
+\hypersetup{colorlinks=true,linkcolor=teal,urlcolor=teal,pdfauthor={田彬豪},pdftitle={机器学习导论复习笔记·精排版}}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\color{navy}\textbf{机器学习导论复习笔记}}
+\fancyhead[R]{\small\color{teal}\leftmark}
+\fancyfoot[C]{\small\color{navy}\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+\titleformat{\section}{\Large\bfseries\color{navy}}{\thesection}{0.65em}{}[\vspace{-2pt}\color{line}\titlerule]
+\titleformat{\subsection}{\large\bfseries\color{teal}}{\thesubsection}{0.55em}{}
+\titlespacing*{\section}{0pt}{7pt}{4pt}
+\titlespacing*{\subsection}{0pt}{5pt}{2pt}
+\newtcolorbox{keybox}[1]{enhanced,breakable,colback=light,colframe=teal,boxrule=0.7pt,arc=1.2mm,left=2mm,right=2mm,top=1.2mm,bottom=1.2mm,title=\textbf{#1},coltitle=navy,fonttitle=\small}
+\newtcolorbox{warnbox}[1]{enhanced,breakable,colback=orange!6,colframe=orange,boxrule=0.7pt,arc=1.2mm,left=2mm,right=2mm,top=1.2mm,bottom=1.2mm,title=\textbf{#1},coltitle=orange!70!black,fonttitle=\small}
+\newtcolorbox{formbox}{enhanced,breakable,colback=navy!3,colframe=navy!70,boxrule=0.55pt,arc=1mm,left=2mm,right=2mm,top=1.2mm,bottom=1.2mm}
+\newcommand{\term}[1]{\textbf{\color{teal}#1}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\renewcommand{\arraystretch}{1.18}
+\begin{document}
+
+\begin{titlepage}
+\thispagestyle{empty}
+\vspace*{23mm}
+{\color{navy}\rule{\textwidth}{1.5pt}}\\[12mm]
+{\fontsize{31}{37}\selectfont\bfseries\color{navy} 机器学习导论\\[4mm]复习笔记}\par
+\vspace{7mm}
+{\Large\color{teal}重新排版 · 公式重绘 · 紧凑速查版}\par
+\vspace{13mm}
+\begin{tcolorbox}[colback=light,colframe=teal,boxrule=0.8pt,arc=2mm,left=6mm,right=6mm,top=5mm,bottom=5mm]
+\large
+\textbf{覆盖内容}\quad 模型评估、线性模型、多分类、决策树、支持向量机、贝叶斯学习、PCA/LDA、KNN、集成学习、聚类。\\[2mm]
+\textbf{使用方式}\quad 先看每节“核心逻辑”，再记公式框与“易错点”；计算题按流程框逐步代入。
+\end{tcolorbox}
+\vfill
+{\large\textbf{整理：田彬豪}}\\[2mm]
+{\color{teal}南京大学 · 智能科学与技术}\par
+\vspace{14mm}
+{\color{navy}\rule{\textwidth}{1.5pt}}
+\end{titlepage}
+
+\tableofcontents
+\clearpage
+
+\section{基本观念与模型评估}
+\begin{multicols}{2}
+\subsection{归纳偏好、奥卡姆剃刀与 NFL}
+\begin{keybox}{一句话理解}
+\term{归纳偏好}是模型从有限训练样本推广到未见样本时所依赖的假设。归纳偏好与真实数据规律越匹配，泛化通常越好。
+\end{keybox}
+\textbf{奥卡姆剃刀：}若多个假设对观测数据解释相近，优先选择较简单者。在机器学习中，通常表现为训练误差相近时偏向复杂度较低的模型，以降低过拟合风险。
+
+\textbf{NFL（No Free Lunch）定理：}若算法 $A$ 在某些问题上优于 $B$，则必存在另一些问题使 $B$ 优于 $A$。因此脱离具体任务与数据分布，不能断言某算法“普遍最好”。
+
+\subsection{生成式与判别式模型}
+\begin{tabularx}{\columnwidth}{>{\bfseries}p{0.19\columnwidth}XX}
+\toprule
+ & 生成式 & 判别式\\
+\midrule
+学习对象 & $P(x,y)$，或 $P(y)$ 与 $P(x\mid y)$ & $P(y\mid x)$ 或决策边界\\
+分类方式 & 贝叶斯公式求后验 & 直接输出类别/得分\\
+典型模型 & 朴素贝叶斯、GMM & Logistic、SVM、树、神经网络\\
+\bottomrule
+\end{tabularx}
+
+\subsection{混淆矩阵}
+\begin{center}
+\begin{tabular}{c|cc}
+\toprule
+& 预测正例 & 预测反例\\\midrule
+真实正例 & TP & FN\\
+真实反例 & FP & TN\\\bottomrule
+\end{tabular}
+\end{center}
+\begin{formbox}
+\[
+P=\frac{TP}{TP+FP},\qquad R=\frac{TP}{TP+FN}
+\]
+\[
+F_1=\frac{2PR}{P+R},\quad
+\mathrm{Acc}=\frac{TP+TN}{TP+TN+FP+FN}
+\]
+\end{formbox}
+\textbf{Precision} 回答“预测为正的样本中有多少是真的”；\textbf{Recall} 回答“所有真实正例中找回了多少”。
+
+\subsection{Macro、Micro 与 ROC}
+\textbf{Macro：}先逐类计算指标，再对各类取平均；每个类别权重相同，适合关注小类表现。\\
+\textbf{Micro：}先汇总所有类的 TP/FP/FN，再计算指标；样本多的类别影响更大。
+
+ROC 随分类阈值变化，横轴和纵轴分别为
+\[
+\mathrm{FPR}=\frac{FP}{FP+TN},\qquad
+\mathrm{TPR}=\frac{TP}{TP+FN}.
+\]
+AUC 是 ROC 曲线下方面积。越接近 1，排序区分能力越强；随机排序的 AUC 约为 $0.5$。
+
+\begin{warnbox}{常见易错}
+FPR 的分母是真实反例数 $FP+TN$；Recall 与 TPR 是同一个量。AUC 衡量排序能力，不等于某个固定阈值下的准确率。
+\end{warnbox}
+\end{multicols}
+
+\section{线性模型、Logistic 回归与多分类}
+\begin{multicols}{2}
+\subsection{为什么常用平方误差}
+回归模型常最小化
+\[
+\sum_{i=1}^{m}\bigl(f(x_i)-y_i\bigr)^2.
+\]
+平方有两点直观作用：\textbf{避免正负误差抵消}；同时目标函数连续可导，线性模型下可得到解析解。若假设噪声服从高斯分布，最小平方误差也可由极大似然推出。
+
+\subsection{Logistic 回归}
+令 $z=\bm w^T\bm x+b$，Sigmoid 映射为
+\[
+p=P(y=1\mid x)=\sigma(z)=\frac{1}{1+e^{-z}}.
+\]
+虽然输出是概率，最终通过阈值（如 $0.5$）得到离散类别，因此它是\textbf{分类算法}。
+
+正负类概率之比称为 odds：$p/(1-p)$。Logistic 的核心假设为
+\[
+\ln\frac{p}{1-p}=\bm w^T\bm x+b.
+\]
+对二分类样本 $y_i\in\{0,1\}$，对数似然为
+\[
+\ell(\bm w,b)=\sum_{i=1}^{m}\left[y_i\ln p_i+(1-y_i)\ln(1-p_i)\right].
+\]
+最大化对数似然等价于最小化二元交叉熵。
+
+\subsection{OvO 与 OvR}
+\begin{tabularx}{\columnwidth}{>{\bfseries}p{0.19\columnwidth}XX}
+\toprule
+& OvO & OvR\\\midrule
+思想 & 每两类训练一个二分类器 & 每次一类对其余类\\
+数量 & $C(C-1)/2$ & $C$\\
+单模型数据 & 只含两类，较少 & 使用全部训练样本\\
+优点 & 单模型简单、类别较平衡 & 分类器少，预测开销小\\
+缺点 & 类别多时模型数大 & 正负样本可能严重不平衡\\
+决策 & 多数投票 & 取得分/概率最大者\\
+\bottomrule
+\end{tabularx}
+
+\begin{keybox}{四分类示例}
+OvR 训练 $C_1$ vs 其余、$C_2$ vs 其余、$C_3$ vs 其余、$C_4$ vs 其余，共 4 个分类器；OvO 则训练任意两类之间的分类器，共 $\binom42=6$ 个。
+\end{keybox}
+\end{multicols}
+
+\section{决策树}
+\begin{multicols}{2}
+\subsection{递归生成流程}
+在当前节点维护样本集 $D$ 与可用属性集 $A$：
+\begin{enumerate}
+\item 若样本全属于同一类，生成叶节点；
+\item 若无属性可分，生成多数类叶节点；
+\item 选择最优划分属性或划分点；
+\item 按取值/区间建立分支；
+\item 对每个非空分支递归执行。
+\end{enumerate}
+叶节点对应最终预测；整棵树可等价写成一组 if--then 规则。
+
+\begin{warnbox}{三种停止情形的处理}
+样本同类：直接标为该类；属性用尽或样本在属性上取值相同：标为当前节点多数类；某个分支样本为空：标为父节点样本的多数类。
+\end{warnbox}
+
+\subsection{熵、信息增益与增益率}
+若第 $k$ 类占比为 $p_k$，信息熵为
+\[
+\mathrm{Ent}(D)=-\sum_{k=1}^{|\mathcal Y|}p_k\log_2p_k.
+\]
+熵越小，样本越纯。属性 $a$ 将 $D$ 划分为 $D^1,\ldots,D^V$：
+\[
+\mathrm{Gain}(D,a)=\mathrm{Ent}(D)-\sum_{v=1}^{V}\frac{|D^v|}{|D|}\mathrm{Ent}(D^v).
+\]
+信息增益偏好取值数多、划分很细的属性。C4.5 使用
+\[
+\mathrm{Gain\_ratio}(D,a)=\frac{\mathrm{Gain}(D,a)}{\mathrm{IV}(a)},
+\]
+\[
+\mathrm{IV}(a)=-\sum_{v=1}^{V}\frac{|D^v|}{|D|}\log_2\frac{|D^v|}{|D|}.
+\]
+$\mathrm{IV}(a)$ 只看各分支样本量，不看类别标签。
+
+\subsection{基尼指数与 CART}
+\[
+\mathrm{Gini}(D)=1-\sum_{k=1}^{|\mathcal Y|}p_k^2,
+\]
+可理解为从 $D$ 中独立随机抽取两个样本，其类别不一致的概率。越小越纯。划分后的基尼指数为
+\[
+\mathrm{Gini\_index}(D,a)=\sum_{v=1}^{V}\frac{|D^v|}{|D|}\mathrm{Gini}(D^v).
+\]
+CART 分类树选择该值最小的划分，并通常生成\textbf{二叉树}。
+
+\subsection{连续值、缺失值与剪枝}
+\textbf{连续属性：}将相邻排序值的中点作为候选阈值，逐一尝试二分 $x_j\le t$ 与 $x_j>t$。\\
+\textbf{缺失值：}可用无缺失样本评价划分，并将缺失样本按分支权重分配。\\
+\textbf{预剪枝：}建树过程中提前停止，训练快、过拟合风险低，但可能欠拟合。\\
+\textbf{后剪枝：}先生成完整树再回剪，训练开销较大，通常泛化更稳健。
+
+\begin{keybox}{算法对应}
+ID3：信息增益最大；C4.5：增益率（通常先筛选信息增益较高者）；CART 分类树：基尼指数最小；CART 回归树：平方误差最小。
+\end{keybox}
+\end{multicols}
+
+\section{支持向量机}
+\begin{multicols}{2}
+\subsection{距离、间隔与支持向量}
+超平面为 $\bm w^T\bm x+b=0$。点到平面的几何距离：
+\[
+\frac{|\bm w^T\bm x_i+b|}{\|\bm w\|}.
+\]
+带标签 $y_i\in\{-1,+1\}$ 时：
+\[
+\underbrace{y_i(\bm w^T\bm x_i+b)}_{\text{函数间隔}},\qquad
+\underbrace{\frac{y_i(\bm w^T\bm x_i+b)}{\|\bm w\|}}_{\text{几何间隔}}.
+\]
+SVM 的原始思想是最大化所有样本中\textbf{最小的几何间隔}，不是最大化平均距离。离分类边界最近、决定间隔边界的样本称为\term{支持向量}。
+
+\subsection{硬间隔 SVM}
+利用尺度不变性令最小函数间隔为 1，得到等价凸优化：
+\begin{formbox}
+\[
+\min_{\bm w,b}\frac12\|\bm w\|^2
+\quad\mathrm{s.t.}\quad
+y_i(\bm w^T\bm x_i+b)\ge1,\ \forall i.
+\]
+\end{formbox}
+两条间隔边界为 $\bm w^T\bm x+b=\pm1$，总间隔宽度为 $2/\|\bm w\|$，单侧间隔为 $1/\|\bm w\|$。
+
+\subsection{软间隔与松弛变量}
+允许部分样本违反间隔约束：
+\[
+\min_{\bm w,b,\bm\xi}\frac12\|\bm w\|^2+C\sum_{i=1}^{m}\xi_i,
+\]
+\[
+y_i(\bm w^T\bm x_i+b)\ge1-\xi_i,\qquad \xi_i\ge0.
+\]
+$C$ 控制间隔大小与训练错误惩罚之间的权衡：$C$ 大，更重视训练误差；$C$ 小，允许更多违反以换取更宽间隔。
+
+\begin{warnbox}{$\xi_i$ 的几何含义}
+$\xi_i=0$：在间隔边界上或外侧；$0<\xi_i<1$：分类正确但进入间隔带；$\xi_i=1$：落在决策边界上；$\xi_i>1$：被错分。
+\end{warnbox}
+
+\subsection{核技巧与非线性 SVM}
+显式映射 $\phi(x)$ 可能维度很高，但对偶问题只需要内积：
+\[
+K(x_i,x_j)=\phi(x_i)^T\phi(x_j).
+\]
+因此可直接计算核函数，避免显式构造高维特征。常用 RBF 核：
+\[
+K(x,z)=\exp\bigl(-\gamma\|x-z\|^2\bigr).
+\]
+$\gamma$ 大时单个样本影响范围窄，边界更曲折；$\gamma$ 小时影响范围宽，边界更平滑。
+
+\subsection{多分类}
+SVM 本质是二分类器，多分类通常采用 OvO 或 OvR。类别较多时 OvO 分类器数量为 $C(C-1)/2$；OvR 只需 $C$ 个，但可能出现类别不平衡。
+\end{multicols}
+
+\section{贝叶斯学习}
+\begin{multicols}{2}
+\subsection{贝叶斯公式与极大似然}
+\[
+P(c\mid x)=\frac{P(x\mid c)P(c)}{P(x)}.
+\]
+其中 $P(c)$ 为先验，$P(x\mid c)$ 为似然，$P(x)$ 为证据，$P(c\mid x)$ 为后验。分类时 $P(x)$ 对所有类别相同，因此只需比较 $P(x\mid c)P(c)$。
+
+给定独立同分布样本，极大似然估计（MLE）选择使观测数据最可能出现的参数：
+\[
+\hat\theta=\arg\max_\theta\prod_{i=1}^{m}p(x_i;\theta)
+=\arg\max_\theta\sum_{i=1}^{m}\ln p(x_i;\theta).
+\]
+MLE 只能在预先指定的分布族内寻找最优参数。
+
+若 $x_i\sim\mathcal N(\mu,\sigma^2)$：
+\[
+\hat\mu=\frac1m\sum_{i=1}^{m}x_i,\qquad
+\hat\sigma^2=\frac1m\sum_{i=1}^{m}(x_i-\hat\mu)^2.
+\]
+注意 MLE 方差分母是 $m$，不是无偏估计中的 $m-1$。
+
+\subsection{朴素贝叶斯}
+核心假设是：\textbf{给定类别后，各属性条件独立}。
+\[
+P(\bm x\mid c)=\prod_{j=1}^{d}P(x_j\mid c).
+\]
+因此预测为
+\[
+\hat c=\arg\max_c P(c)\prod_{j=1}^{d}P(x_j\mid c).
+\]
+实际计算常取对数，把连乘变成连加，防止数值下溢。
+
+\subsection{拉普拉斯修正}
+若某属性值在训练集中从未与类别 $c$ 同时出现，未经修正的条件概率为 0，会使整项乘积为 0。设类别数为 $N$：
+\[
+\hat P(c)=\frac{|D_c|+1}{|D|+N}.
+\]
+若离散属性 $x_j$ 有 $V_j$ 个可能取值：
+\[
+\hat P(x_j=v\mid c)=\frac{|D_{c,x_j=v}|+1}{|D_c|+V_j}.
+\]
+
+\subsection{连续属性与高斯朴素贝叶斯}
+对连续属性常假设
+\[
+x_j\mid c\sim\mathcal N(\mu_{c,j},\sigma_{c,j}^2),
+\]
+\[
+p(x_j\mid c)=\frac{1}{\sqrt{2\pi}\sigma_{c,j}}
+\exp\left[-\frac{(x_j-\mu_{c,j})^2}{2\sigma_{c,j}^2}\right].
+\]
+在朴素假设下，多维密度等于各一维密度的乘积，协方差矩阵相当于对角形式。
+
+\subsection{半朴素贝叶斯与贝叶斯网络}
+\textbf{ODE：}每个属性除依赖类别外，最多再依赖一个其他属性。\\
+\textbf{SPODE：}所有属性共享同一个“超父属性”。它比完全条件独立更灵活，又比一般贝叶斯网络简单。
+
+贝叶斯网络用\textbf{有向无环图（DAG）}表示变量的直接依赖关系，将联合概率分解为
+\[
+P(x_1,\ldots,x_d)=\prod_{j=1}^{d}P(x_j\mid \mathrm{Pa}(x_j)).
+\]
+图结构编码条件独立关系；每个节点只需给定父节点条件下的概率分布。
+\end{multicols}
+
+\section{维度约简：PCA 与 LDA}
+\begin{multicols}{2}
+\subsection{为什么需要降维}
+高维空间体积随维数快速增长，而样本数通常不能同步指数增长，导致样本稀疏、距离趋同、计算与存储开销增大，并引入冗余与噪声。降维可行的核心原因是：高维数据往往集中在低维子空间或低维流形附近。
+
+\subsection{PCA 的目标}
+设样本已中心化，协方差矩阵为 $S$。沿单位方向 $\bm w$ 投影后的方差为
+\[
+\mathrm{Var}(\bm w^T\bm x)=\bm w^TS\bm w.
+\]
+第一主成分求解
+\[
+\max_{\bm w}\bm w^TS\bm w\quad\mathrm{s.t.}\quad \bm w^T\bm w=1.
+\]
+拉格朗日乘子法给出
+\[
+S\bm w=\lambda\bm w.
+\]
+因此主成分方向是协方差矩阵的特征向量，特征值等于该方向上的方差。
+
+\subsection{PCA 完整计算流程}
+设每行一个样本，$X\in\R^{m\times d}$：
+\begin{enumerate}
+\item 计算每个特征均值并中心化；
+\item 计算 $S=\frac1mX^TX$（课程若规定 $1/(m-1)$ 则按题意）；
+\item 求 $S$ 的特征值、特征向量；
+\item 特征值从大到小排序，取前 $k$ 个单位特征向量组成 $W_k$；
+\item 降维坐标：$Z=XW_k$；
+\item 重构：$\hat X=ZW_k^T+\bm 1\mu^T$。
+\end{enumerate}
+第 $i$ 主成分贡献率：
+\[
+\eta_i=\frac{\lambda_i}{\sum_{j=1}^{d}\lambda_j},\qquad
+\text{累计贡献率}=\sum_{i=1}^{k}\eta_i.
+\]
+协方差矩阵半正定，特征值非负，\textbf{无需取绝对值}。
+
+\begin{keybox}{PCA 的本质}
+PCA 没有凭空创造或消灭总方差，而是把总方差重新分配到相互正交的主成分方向上。保留大特征值方向，相当于尽量保留信息并最小化平方重构误差。
+\end{keybox}
+
+\subsection{LDA 的目标}
+LDA 使用类别标签，希望\textbf{类内紧凑、类间分离}。二分类均值为 $\bm\mu_0,\bm\mu_1$，定义
+\[
+S_b=(\bm\mu_0-\bm\mu_1)(\bm\mu_0-\bm\mu_1)^T,
+\]
+\[
+S_w=\sum_{x\in X_0}(x-\bm\mu_0)(x-\bm\mu_0)^T+
+\sum_{x\in X_1}(x-\bm\mu_1)(x-\bm\mu_1)^T.
+\]
+Fisher 准则：
+\[
+J(\bm w)=\frac{\bm w^TS_b\bm w}{\bm w^TS_w\bm w},
+\qquad \max_{\bm w}J(\bm w).
+\]
+二分类最优方向满足
+\[
+\bm w\propto S_w^{-1}(\bm\mu_1-\bm\mu_0).
+\]
+投影后 $z=\bm w^T\bm x$，再在一维空间设置阈值分类。
+
+\subsection{PCA 与 LDA 对比}
+\begin{tabularx}{\columnwidth}{>{\bfseries}p{0.2\columnwidth}XX}
+\toprule
+& PCA & LDA\\\midrule
+监督性 & 无监督 & 有监督\\
+目标 & 最大化总体方差 & 类间远、类内近\\
+核心矩阵 & 协方差矩阵 $S$ & $S_w,S_b$\\
+方向上限 & 受 $\mathrm{rank}(S)$ 限制 & 最多 $C-1$ 个\\
+用途 & 压缩、去噪、可视化 & 判别性降维、分类\\
+\bottomrule
+\end{tabularx}
+
+\begin{warnbox}{常见易错}
+PCA 方向数不直接由类别数决定；LDA 的有效判别方向最多为类别数减一。PCA 先中心化，重构后要把均值加回去。
+\end{warnbox}
+\end{multicols}
+
+\section{K 近邻}
+\begin{multicols}{2}
+\subsection{基本思想}
+对测试样本计算其与训练样本的距离，选出最近的 $K$ 个邻居。分类取邻居多数类；回归取邻居目标值的平均或加权平均。KNN 没有显式训练参数，主要计算开销发生在预测阶段。
+
+\subsection{常见距离}
+\[
+\text{欧氏： }d_2(x,z)=\sqrt{\sum_j(x_j-z_j)^2},
+\]
+\[
+\text{曼哈顿： }d_1(x,z)=\sum_j|x_j-z_j|,
+\]
+\[
+\text{余弦相似度： }\frac{x^Tz}{\|x\|\|z\|}.
+\]
+欧氏和曼哈顿关注绝对距离；余弦主要比较方向。基于距离的方法对特征尺度敏感，通常先做 z-score 标准化或 min--max 归一化。
+
+\subsection{加权 KNN}
+可令近邻权重与距离成反比，例如
+\[
+\alpha_i=\frac{1}{d(x,x_i)+\varepsilon}.
+\]
+分类：
+\[
+\hat y=\arg\max_c\sum_{x_i\in N_K(x)}\alpha_i\mathbf 1(y_i=c).
+\]
+回归：
+\[
+\hat y=\frac{\sum_{x_i\in N_K(x)}\alpha_i y_i}{\sum_{x_i\in N_K(x)}\alpha_i}.
+\]
+
+\begin{keybox}{K 的影响}
+$K$ 小：边界灵活、方差大、易受噪声影响；$K$ 大：边界平滑、偏差增大，可能淹没局部结构。二分类常取奇数以减少平票。
+\end{keybox}
+\end{multicols}
+
+\section{集成学习}
+\begin{multicols}{2}
+\subsection{有效集成的条件}
+集成把多个个体学习器的结果组合起来。要获得收益，基学习器应当：\textbf{具有一定准确性}，且\textbf{错误具有多样性、不能高度相关}。分类常投票，回归常平均。
+
+\subsection{Bagging 与 Bootstrap}
+每轮从 $m$ 个样本中\textbf{有放回抽取 $m$ 次}，得到一个训练集。某样本一次都未被抽中的概率为
+\[
+\left(1-\frac1m\right)^m\to e^{-1}\approx36.8\%.
+\]
+因此一个 Bootstrap 集约含 $63.2\%$ 的不同样本，剩余样本为袋外（OOB）样本，可估计泛化误差。
+
+Bagging 独立训练多个模型，分类多数投票，回归平均。它主要通过平均降低\textbf{方差}，对高偏差模型的改善有限，并且可以并行训练。
+
+\subsection{随机森林}
+随机森林在 Bagging 决策树基础上增加\textbf{属性随机}：
+\begin{enumerate}
+\item 每棵树使用 Bootstrap 样本；
+\item 每个节点从全部 $d$ 个属性中随机选 $k$ 个候选；
+\item 只在这 $k$ 个属性中寻找最佳划分；
+\item 树通常充分生长，不单独剪枝；
+\item 多树投票或平均。
+\end{enumerate}
+样本随机和属性随机共同降低树之间的相关性。
+
+\begin{keybox}{随机森林优缺点}
+优点：泛化稳定、可并行、可利用 OOB、适合高维数据、对噪声较稳健。缺点：模型大、解释性低，主要降方差，难以根治系统性高偏差。
+\end{keybox}
+
+\subsection{Boosting}
+Boosting 是\textbf{串行、逐步纠错}的集成：后一个学习器针对当前模型的不足继续学习，最终形成加法模型
+\[
+F_T(x)=\sum_{t=1}^{T}\alpha_t h_t(x).
+\]
+后续模型依赖前一轮结果，因此难以完全并行；对噪声与异常样本可能更敏感。
+
+\subsection{AdaBoost}
+初始化样本权重 $w_{1i}=1/m$。第 $t$ 轮训练弱分类器 $G_t$，加权错误率
+\[
+e_t=\sum_{i=1}^{m}w_{ti}\mathbf 1\bigl(G_t(x_i)\ne y_i\bigr).
+\]
+分类器权重：
+\[
+\alpha_t=\frac12\ln\frac{1-e_t}{e_t}.
+\]
+误差越小，$\alpha_t$ 越大。样本权重更新：
+\[
+w_{t+1,i}=\frac{w_{ti}\exp[-\alpha_t y_iG_t(x_i)]}{Z_t}.
+\]
+分对样本乘 $e^{-\alpha_t}<1$，分错样本乘 $e^{\alpha_t}>1$；$Z_t$ 负责归一化。最终分类器
+\[
+H(x)=\mathrm{sign}\left(\sum_t\alpha_tG_t(x)\right).
+\]
+
+\subsection{提升树与 GBDT}
+提升树不断加入新树：
+\[
+f_m(x)=f_{m-1}(x)+\eta h_m(x).
+\]
+平方损失下，新树拟合的是当前模型的\textbf{残差}；一般损失下，GBDT 拟合损失函数对当前预测的\textbf{负梯度}。流程为：算负梯度（平方损失即残差）$\to$ 用树拟合 $\to$ 加入模型 $\to$ 重新计算。
+
+\subsection{Stacking}
+第一层可以使用异质模型 $h_1,\ldots,h_M$，将预测作为新特征：
+\[
+z_i=(h_1(x_i),\ldots,h_M(x_i)).
+\]
+第二层训练元学习器 $g$：
+\[
+H(x)=g(h_1(x),\ldots,h_M(x)).
+\]
+训练元学习器时必须用\textbf{折外预测（OOF）}构造新训练集，不能直接用基模型在其训练样本上的预测，否则会发生严重信息泄漏。元学习器通常选较简单的 Logistic 回归或线性模型。
+\end{multicols}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{>{\bfseries}p{0.14\textwidth}XXX}
+\toprule
+比较项 & Bagging & Boosting & Stacking\\\midrule
+核心思想 & 独立模型投票/平均 & 后续模型纠正前序不足 & 再训练模型学习如何组合\\
+训练结构 & 并行 & 串行 & 分层，第一层可并行\\
+基学习器 & 通常同质 & 通常同质弱学习器 & 通常异质\\
+数据处理 & Bootstrap、OOB & 调样本权重或拟合负梯度 & OOF 预测构造新特征\\
+主要作用 & 主要降低方差 & 常降低偏差 & 可同时改善偏差与方差\\
+典型模型 & 随机森林 & AdaBoost、GBDT & 两层/多层 Stacking\\
+主要风险 & 相关性高时收益有限 & 噪声下敏感、不可并行 & 信息泄漏、结构复杂\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\section{聚类}
+\begin{multicols}{2}
+\subsection{K-means 的目标与流程}
+K-means 用每个簇的均值向量 $\mu_k$ 表示该簇：
+\[
+\mu_k=\frac1{|C_k|}\sum_{x_i\in C_k}x_i.
+\]
+目标是最小化簇内平方和（SSE）：
+\[
+J=\sum_{k=1}^{K}\sum_{x_i\in C_k}\|x_i-\mu_k\|_2^2.
+\]
+算法交替执行：
+\begin{enumerate}
+\item 指定簇数 $K$，初始化 $K$ 个中心；
+\item 分配：每个样本归入最近中心；
+\item 更新：每个中心改为簇内样本均值；
+\item 直到分配/中心不变、目标下降很小或达到最大迭代次数。
+\end{enumerate}
+每次分配与更新都不会增大目标函数，因此算法会收敛，但只保证到局部最优。
+
+\subsection{K-means 的局限}
+\begin{itemize}
+\item 必须预先指定 $K$；
+\item 对初始中心敏感，易陷入局部最优；
+\item 平方距离使其对异常值敏感；
+\item 更适合球形、凸、大小和密度相近的簇；
+\item 不擅长环形/月牙形、密度差异大的簇；
+\item 对特征尺度敏感，通常需标准化。
+\end{itemize}
+
+\subsection{K-means++ 与 ISODATA}
+K-means++ 只改进初始化。已选中心集为 $C$，定义
+\[
+D(x)=\min_{c\in C}\|x-c\|_2,
+\qquad
+P(x\text{ 被选})=\frac{D(x)^2}{\sum_{x'}D(x')^2}.
+\]
+离现有中心越远的点越可能成为新中心，从而减少糟糕初始化。
+
+ISODATA 在迭代中允许\textbf{分裂、合并、删除过小簇}：簇内过于分散时分裂，两个中心很近时合并。优点是簇数更灵活，缺点是超参数和阈值较多。
+
+\subsection{高斯混合模型与 EM}
+GMM 将数据密度表示为多个高斯成分的加权组合：
+\[
+p(x)=\sum_{k=1}^{K}\alpha_k\,\mathcal N(x\mid\mu_k,\Sigma_k),
+\quad \alpha_k\ge0,\quad\sum_k\alpha_k=1.
+\]
+$\alpha_k$ 是来自第 $k$ 个成分的先验概率。样本对各成分的后验责任度：
+\[
+\gamma_{ik}=P(z_i=k\mid x_i)=
+\frac{\alpha_k\mathcal N(x_i\mid\mu_k,\Sigma_k)}{\sum_j\alpha_j\mathcal N(x_i\mid\mu_j,\Sigma_j)}.
+\]
+这给出\textbf{软聚类}。
+
+EM 交替进行：\\
+\textbf{E 步：}固定参数，计算隐变量后验/责任度；\\
+\textbf{M 步：}固定责任度，最大化期望完全数据对数似然，更新 $\alpha_k,\mu_k,\Sigma_k$；\\
+重复直至似然增幅很小。EM 通常单调提高似然，但可能收敛到局部最优。
+
+\subsection{聚类性能度量}
+基本原则是\textbf{簇内紧凑、簇间分离}。一种紧凑度：
+\[
+CP=\sum_{k=1}^{K}\frac1{|C_k|}\sum_{x\in C_k}d(x,\mu_k),
+\]
+越小越好。簇中心平均间隔：
+\[
+SP=\frac{2}{K(K-1)}\sum_{i<j}d(\mu_i,\mu_j),
+\]
+越大越好。
+
+Davies--Bouldin 指数：
+\[
+S_i=\frac1{|C_i|}\sum_{x\in C_i}d(x,\mu_i),\qquad
+R_{ij}=\frac{S_i+S_j}{d(\mu_i,\mu_j)},
+\]
+\[
+DBI=\frac1K\sum_{i=1}^{K}\max_{j\ne i}R_{ij}.
+\]
+对每个簇寻找最容易与其混淆的另一个簇再平均，\textbf{DBI 越小越好}。
+
+Dunn 指数：
+\[
+\mathrm{Dunn}=\frac{\min_{i\ne j}\delta(C_i,C_j)}{\max_k\Delta(C_k)},
+\]
+分子是最差的簇间距离，分母是最差的簇内直径，\textbf{越大越好}。
+
+\subsection{DBSCAN}
+给定邻域半径 $\varepsilon$ 与最少点数 MinPts：
+\begin{itemize}
+\item \textbf{核心点：}其 $\varepsilon$ 邻域内点数不少于 MinPts；
+\item \textbf{边界点：}不是核心点，但落在某核心点邻域内；
+\item \textbf{噪声点：}既非核心点也非边界点。
+\end{itemize}
+密度直达通常不对称；密度可达表示存在一条核心点链；密度相连表示存在某点，使两点都从它密度可达。DBSCAN 能识别任意形状簇并发现噪声，但对 $\varepsilon$、MinPts 和不同密度簇较敏感。
+
+\subsection{层次聚类}
+凝聚式层次聚类从“每个样本一个簇”开始，反复合并最近的两个簇，直到形成一个总簇，结果用树状图（dendrogram）表示。常见簇间距离：
+\begin{itemize}
+\item 单链接：两簇样本间最短距离；
+\item 全链接：两簇样本间最长距离；
+\item 平均链接：所有跨簇样本对距离的平均。
+\end{itemize}
+单链接易产生链式效应；全链接偏好紧凑簇；平均链接折中。
+\end{multicols}
+
+\section{考前易错点总表}
+\begin{multicols}{2}
+\begin{warnbox}{评估与树}
+\begin{itemize}
+\item Recall = TPR；FPR 分母是 $FP+TN$。
+\item Macro 先逐类后平均；Micro 先汇总计数。
+\item 决策树熵中的对数通常取 $\log_2$。
+\item 信息增益是“划分前熵减加权划分后熵”。
+\item CART 分类树选最小基尼指数，通常二叉划分。
+\end{itemize}
+\end{warnbox}
+\begin{warnbox}{SVM 与贝叶斯}
+\begin{itemize}
+\item 函数间隔不除 $\|w\|$，几何间隔要除。
+\item 总间隔 $2/\|w\|$，单侧间隔 $1/\|w\|$。
+\item 朴素贝叶斯是假设“给定类别后”条件独立。
+\item 拉普拉斯分母增加的是可能取值数；类别先验增加类别数。
+\item 高斯 MLE 方差分母为 $m$。
+\end{itemize}
+\end{warnbox}
+\begin{warnbox}{降维与近邻}
+\begin{itemize}
+\item PCA 先中心化；贡献率按非负特征值计算，不取绝对值。
+\item PCA 有效方向受秩限制；LDA 最多 $C-1$ 维。
+\item PCA 无监督看总方差；LDA 有监督看类内/类间散度。
+\item KNN 前应标准化；回归取平均或距离加权平均。
+\end{itemize}
+\end{warnbox}
+\begin{warnbox}{集成与聚类}
+\begin{itemize}
+\item Bootstrap 不同样本约占 $63.2\%$，OOB 约占 $36.8\%$。
+\item Bagging 主要降方差；Boosting 串行纠错；Stacking 必须 OOF。
+\item GBDT 一般拟合负梯度，平方损失时才等于残差。
+\item K-means 使用平方欧氏距离，易受尺度和异常值影响。
+\item DBI 越小越好，Dunn 越大越好。
+\end{itemize}
+\end{warnbox}
+\end{multicols}
+
+\vfill
+\begin{center}
+\color{teal}\rule{0.55\textwidth}{0.5pt}\\[2mm]
+\small 本版将原笔记中的截图、零散公式与重复段落统一重绘并合并，适合打印与考前快速检索。
+\end{center}
+
+\end{document}
