@@ -10,14 +10,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install TeX
         run: |
-          sudo apt-get update
-          sudo apt-get install -y texlive-xetex texlive-lang-chinese texlive-latex-extra
+          sudo apt-get update -qq >/dev/null
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq texlive-xetex texlive-lang-chinese texlive-latex-extra >/dev/null 2>&1
       - name: Build PDF
         working-directory: tmp_pdf
         run: |
           sed -i '/\\usepackage{microtype}/a \\tcbuselibrary{breakable,skins}' ml_notes_retypeset.tex
-          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex || (tail -n 120 ml_notes_retypeset.log && exit 1)
-          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex || (tail -n 120 ml_notes_retypeset.log && exit 1)
+          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build.out 2>&1 || (cat build.out && tail -n 80 ml_notes_retypeset.log && exit 1)
+          xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build2.out 2>&1 || (cat build2.out && tail -n 80 ml_notes_retypeset.log && exit 1)
       - uses: actions/upload-artifact@v4
         with:
           name: ml-notes-pdf
