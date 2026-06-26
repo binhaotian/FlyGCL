@@ -17,6 +17,7 @@ jobs:
         continue-on-error: true
         working-directory: tmp_pdf
         run: |
+          set +e
           sed -i '/\\usepackage{microtype}/a \\tcbuselibrary{breakable,skins}' ml_notes_retypeset.tex
           xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build.out 2>&1
           STATUS=$?
@@ -24,21 +25,29 @@ jobs:
             xelatex -interaction=nonstopmode -halt-on-error ml_notes_retypeset.tex >build2.out 2>&1
             STATUS=$?
           fi
-          tail -n 160 ml_notes_retypeset.log >build_tail.txt || true
+          tail -n 200 ml_notes_retypeset.log >build_tail.txt 2>/dev/null || true
+          echo $STATUS >build_status.txt
           exit $STATUS
+      - name: Publish diagnostics to branch
+        if: always()
+        run: |
+          cp tmp_pdf/build_tail.txt /tmp/build_tail.txt || true
+          cp tmp_pdf/build.out /tmp/build.out || true
+          cp tmp_pdf/build_status.txt /tmp/build_status.txt || true
+          git fetch origin tmp-ml-notes-pdf-20260626
+          git checkout tmp-ml-notes-pdf-20260626
+          cp /tmp/build_tail.txt tmp_pdf/build_tail_latest.txt || true
+          cp /tmp/build.out tmp_pdf/build_out_latest.txt || true
+          cp /tmp/build_status.txt tmp_pdf/build_status_latest.txt || true
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+          git add tmp_pdf/build_*_latest.txt
+          git commit -m 'Save temporary TeX diagnostics [skip ci]' || true
+          git push origin tmp-ml-notes-pdf-20260626
       - name: Upload PDF
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: ml-notes-pdf
           path: tmp_pdf/ml_notes_retypeset.pdf
-          if-no-files-found: error
-      - name: Upload diagnostics
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: ml-notes-build-log
-          path: |
-            tmp_pdf/build.out
-            tmp_pdf/build2.out
-            tmp_pdf/build_tail.txt
+          if-no-files-found: ignore
