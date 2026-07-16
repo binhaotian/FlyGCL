@@ -179,6 +179,7 @@ results
 *.ipynb
 *.pdf
 *.csv
+presentation/*.zip
 
 /*.sh
 !run.sh
