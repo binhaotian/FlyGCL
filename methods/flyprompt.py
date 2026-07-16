@@ -2,7 +2,7 @@ import gc
 import json
 import logging
 import os
-from typing import Dict, List
+from typing import Dict
 
 import numpy as np
 import torch
@@ -43,6 +43,10 @@ class FlyPrompt(_Trainer):
             _iter += 1
 
         self.collect(images.clone(), labels.clone())
+
+        if hasattr(self, "_maybe_advance_internal_step"):
+            batch_size_global = images.size(0) * self.world_size
+            self._maybe_advance_internal_step(batch_size_global)
 
         del images, labels
         gc.collect()
@@ -197,6 +201,7 @@ class FlyPrompt(_Trainer):
         self.model.eval()
         # If doing oracle-style modes, we need to accumulate logits per-route across dataset
         do_oracle_all = router_mode in ['sample_oracle', 'class_oracle', 'worst'] or analysis_router_quality
+        results_summary = {}
 
         if do_oracle_all:
             # We'll accumulate per-route logits and labels across dataset
@@ -236,9 +241,7 @@ class FlyPrompt(_Trainer):
             per_route_logits = [torch.cat(lst, dim=0) if len(lst)>0 else torch.empty((0,self.n_classes)) for lst in per_route_logits]
             all_labels = torch.cat(all_labels, dim=0)
 
-            # If only doing oracle metrics (analysis), compute the accuracies for different modes
-            if analysis_router_quality and self.is_main_process() and end:
-                results_summary = {}
+            if self.is_main_process() and end:
                 # Learned / Random / Single evaluated via separate pass below
                 # Compute sample_oracle / class_oracle / worst using per_route_logits
                 N = all_labels.size(0)
@@ -902,16 +905,8 @@ class FlyPrompt(_Trainer):
         pass
 
     def online_after_task(self, cur_iter):
-        """Hook called after each benchmark task."""
-        if self.distributed:
-            self.model.module.snapshot_online_fc(self.task_id)
-        else:
-            self.model.snapshot_online_fc(self.task_id)
+        """Keep benchmark task id for logging; model step advances by samples."""
         self.task_id += 1
-        if self.distributed:
-            self.model.module.process_task_count()
-        else:
-            self.model.process_task_count()
 
     def analyze_expert_features(self):
         """Extract per-expert CLS features on the full test set, compute
@@ -1190,4 +1185,3 @@ class FlyPrompt(_Trainer):
             )
         except Exception as e:
             logger.exception("[FlyPrompt] Failed to plot residual CKA heatmap: %s", e)
-

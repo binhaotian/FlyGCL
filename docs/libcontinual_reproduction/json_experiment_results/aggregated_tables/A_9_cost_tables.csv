@@ -1,0 +1,3 @@
+table,row,result_group,n_json,evidence_status,paper_A_auc,paper_A_last,paper_A_avg,paper_F_last,paper_BWT,json_A_auc_mean,json_A_auc_std,json_A_last_mean,json_A_last_std,json_A_avg_mean,json_A_avg_std,json_F_last_mean,json_F_last_std,json_BWT_mean,json_BWT_std,note
+A.9 Cost Tables,Method cost / default FlyPrompt,results_balanced_v6_amp,5,ARCHIVED_JSON,83.24,,,,4.35,81.47,0.61,84.59,0.37,83.86,0.70,3.79,0.28,1.87,0.34,Metric JSON exists; timing/storage raw artifact is separate
+A.9 Cost Tables,Component cost,,0,NO_ARCHIVED_JSON_MAPPING,,,,,,,,,,,,,,,,No seed JSON expected; requires parameter/storage measurement artifact

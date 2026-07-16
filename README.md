@@ -17,7 +17,7 @@ FlyGCL is a practical framework for **General Continual Learning (GCL) / online 
 
 ## 📦 What's included
 
-- **Methods**: `flyprompt` (ours), `l2p`, `dualprompt`, `codaprompt`, `mvp`, `misa`, `slca`, `sprompt`, `ranpac`, `hide` (prompt/lora/adapter), `norga`, `sdlora`
+- **Methods**: `flyprompt` (ours), `l2p`, `dualprompt`, `codaprompt`, `mvp`, `slca`, `sprompt`, `ranpac`, `hide` (prompt/lora/adapter), `norga`, `sdlora`
 - **Backbones**: ViT via `timm` and a local ViT implementation (`models/vit.py`) supporting multiple pretrained sources
 - **Setting**: true online Si-Blurry with configurable disjoint/blurry ratios
 - **Outputs**: logs and numpy/json artifacts under `results/`
@@ -26,7 +26,7 @@ FlyGCL is a practical framework for **General Continual Learning (GCL) / online 
 
 ### Python environment
 
-- **Python**: 3.10+
+- **Python**: 3.10 or 3.11 recommended. The pinned `timm==0.6.12` stack is not compatible with Python 3.12.
 - **PyTorch / CUDA**: please follow the official PyTorch instructions for your CUDA version, and then install the remaining dependencies.
 
 We recommend:
@@ -188,6 +188,20 @@ bash scripts/run_baselines_flyprompt.sh 0 "1 2 3" cifar100 note --data_dir /mnt/
 ### `run.sh` (multi-session runner)
 
 `run.sh` launches many baseline scripts via `screen`. If you plan to use it, please ensure `screen` is installed.
+
+## 📊 LibContinual Migration & Reproduction Report
+
+We also provide a Chinese report for the FlyPrompt migration to LibContinual, including the migration design, experiment protocol, paper-vs-reproduction figures, complete result tables, and archived JSON evidence:
+
+```text
+docs/libcontinual_reproduction/FULL_REPRODUCTION_REPORT.md
+```
+
+Start here:
+
+- [中文完整复现报告](docs/libcontinual_reproduction/FULL_REPRODUCTION_REPORT.md)
+- [复现目录说明](docs/libcontinual_reproduction/README.md)
+- [表格到 JSON 证据映射](docs/libcontinual_reproduction/json_experiment_results/TABLE_TO_JSON_MAP.md)
 
 ## 🔧 Key arguments
 

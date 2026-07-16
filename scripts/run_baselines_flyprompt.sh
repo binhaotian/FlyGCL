@@ -25,7 +25,7 @@ echo "========================================="
 echo "Starting FlyPrompt Baseline Experiment"
 echo "Dataset: $DATASET"
 echo "Seeds: $SEEDS"
-echo "Si-Blurry Setting: m=$N%, n=$M%"
+echo "Si-Blurry Setting: m=$M%, n=$N%"
 echo "Tasks: $N_TASKS"
 echo "========================================="
 

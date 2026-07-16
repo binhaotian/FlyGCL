@@ -1,0 +1,6 @@
+table,row,result_group,n_json,evidence_status,paper_A_auc,paper_A_last,paper_A_avg,paper_F_last,paper_BWT,json_A_auc_mean,json_A_auc_std,json_A_last_mean,json_A_last_std,json_A_avg_mean,json_A_avg_std,json_F_last_mean,json_F_last_std,json_BWT_mean,json_BWT_std,note
+A.8 Routing Algorithms,Prototype Similarity,,0,NO_ARCHIVED_JSON_MAPPING,80.67,83.8,,,,,,,,,,,,,,Report value exists; no local router implementation / JSON mapping
+A.8 Routing Algorithms,Naive Bayes,,0,NO_ARCHIVED_JSON_MAPPING,82.73,85.51,,,,,,,,,,,,,,Report value exists; no local router implementation / JSON mapping
+A.8 Routing Algorithms,MLP,,0,NO_ARCHIVED_JSON_MAPPING,81.75,82.76,,,,,,,,,,,,,,Report value exists; no local router implementation / JSON mapping
+A.8 Routing Algorithms,K-Means,,0,NO_ARCHIVED_JSON_MAPPING,82.22,85.27,,,,,,,,,,,,,,Report value exists; no local router implementation / JSON mapping
+A.8 Routing Algorithms,Ridge Regression,results_balanced_v6_amp,5,ARCHIVED_JSON,83.24,86.76,,,,81.47,0.61,84.59,0.37,83.86,0.70,3.79,0.28,1.87,0.34,Paper Ridge Regression

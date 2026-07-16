@@ -393,7 +393,11 @@ class FlyPrompt(nn.Module):
         何时调用:
         - 由 `_Trainer._maybe_advance_internal_step` 触发（按样本数推进）。
         """
+        self.snapshot_online_fc(self.task_count)
         self.task_count += 1
+        if self.task_count >= self.task_num:
+            self.task_count = self.task_num - 1
+            return
         self.rp_head.update()
         self.experts.init_new_expert(self.task_count)
         self.init_fc(self.task_count)

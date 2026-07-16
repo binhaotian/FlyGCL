@@ -1,0 +1,116 @@
+# 由 reproduce/flyprompt/generate_planned_configs.py 自动生成
+save_path: ./results_plan_cifar100_rd100_rb10_amp
+dataset: si-blurry-cifar100
+data_root: /root/autodl-tmp/FlyGCL/data/CIFAR
+image_size: 224
+pin_memory: false
+augment: true
+num_workers: 0
+device_ids: auto
+n_gpu: 1
+seed: 1
+deterministic: true
+epoch: 1
+batch_size: 64
+val_per_epoch: 1
+buffer:
+  name: LinearBuffer
+  kwargs:
+    buffer_size: 0
+    batch_size: 128
+    strategy: herding
+optimizer:
+  name: Adam
+  kwargs:
+    lr: 0.005
+    weight_decay: 0
+lr_scheduler:
+  name: Constant
+warmup: 3
+testing_times: 1
+setting: task-agnostic
+testing_per_task: true
+eval_with_test: true
+init_cls_num: 20
+inc_cls_num: 20
+total_cls_num: 100
+task_num: 5
+test_batch_size: 128
+si_blurry:
+  disjoint_ratio: 100
+  blurry_ratio: 10
+  randomized: false
+  shuffle_train: false
+  flygcl_tensor_transform: false
+flyprompt_eval:
+  enabled: true
+  eval_period: 1000
+train_trfms:
+- Resize:
+    size:
+    - 224
+    - 224
+- RandomCrop:
+    size: 224
+    padding: 4
+- RandomHorizontalFlip:
+    p: 0.5
+- ToTensor: {}
+- Normalize:
+    mean:
+    - 0.4914
+    - 0.4822
+    - 0.4465
+    std:
+    - 0.247
+    - 0.2435
+    - 0.2616
+test_trfms:
+- Resize:
+    size:
+    - 224
+    - 224
+- ToTensor: {}
+- Normalize:
+    mean:
+    - 0.4914
+    - 0.4822
+    - 0.4465
+    std:
+    - 0.247
+    - 0.2435
+    - 0.2616
+backbone:
+  name: vit_flyprompt
+  kwargs:
+    model_name: vit_base_patch16_224
+    pretrained: true
+    checkpoint_path: /root/autodl-tmp/FlyGCL/checkpoints/ViT-B_16.npz
+    num_classes: 100
+classifier:
+  name: FlyPrompt
+  kwargs:
+    num_class: 100
+    task_num: 5
+    feat_dim: 768
+    prompt_length: 5
+    prompt_layers:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    rp_dim: 10000
+    rp_ridge: 10000
+    router_solver: direct
+    router_direct_solve_threshold: 2048
+    router_cg_max_iter: 80
+    router_cg_tol: 0.0001
+    ema_ratio:
+    - 0.9
+    - 0.99
+    ensemble_method: softmax_max_prob
+    online_iter: 3
+    use_batch_mask: true
+    use_online_snapshot: false
+use_amp: true

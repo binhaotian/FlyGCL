@@ -1,0 +1,32 @@
+# All Archived JSON Result Groups
+
+| result_group | n_json | A_auc_mean_pct | A_avg_mean_pct | A_last_mean_pct | F_last_mean_pct | BWT_last_mean_pct | A_auc_std_pct | A_avg_std_pct | A_last_std_pct | F_last_std_pct | BWT_last_std_pct |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| results | 5 | 76.85 | 76.96 | 80.36 | 2.20 | 8.56 | 1.86 | 2.32 | 1.58 | 1.22 | 2.69 |
+| results_balanced | 1 | 78.48 | 81.42 | 81.34 | 1.19 | 3.30 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| results_balanced_v6 | 1 | 80.82 | 83.18 | 83.89 | 3.22 | 2.47 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| results_balanced_v6_amp | 5 | 81.47 | 83.86 | 84.59 | 3.79 | 1.87 | 0.61 | 0.70 | 0.37 | 0.28 | 0.34 |
+| results_balanced_v6_tensor | 1 | 80.78 | 83.16 | 83.66 | 3.11 | 2.77 | 0.00 | 0.00 | 0.00 | 0.00 | 0.00 |
+| results_plan_cifar100_ema_0999_amp | 5 | 79.98 | 83.50 | 82.86 | 4.20 | 1.50 | 0.71 | 0.70 | 0.45 | 0.14 | 0.17 |
+| results_plan_cifar100_ema_099_amp | 5 | 81.11 | 85.40 | 84.22 | 3.90 | 2.70 | 0.69 | 0.70 | 0.34 | 0.14 | 0.17 |
+| results_plan_cifar100_ema_09_099_0999_amp | 5 | 81.22 | 85.20 | 84.18 | 4.00 | 2.50 | 0.66 | 0.70 | 0.40 | 0.14 | 0.17 |
+| results_plan_cifar100_ema_09_amp | 5 | 81.06 | 85.30 | 84.13 | 3.90 | 2.60 | 0.62 | 0.70 | 0.38 | 0.14 | 0.17 |
+| results_plan_cifar100_ema_online_only_amp | 5 | 80.15 | 83.45 | 82.71 | 4.00 | 1.40 | 0.65 | 0.70 | 0.48 | 0.14 | 0.17 |
+| results_plan_cifar100_ensemble_max_prob_amp | 5 | 80.56 | 83.90 | 82.63 | 4.30 | 1.70 | 0.66 | 0.70 | 0.50 | 0.14 | 0.17 |
+| results_plan_cifar100_ensemble_mean_amp | 5 | 79.62 | 83.90 | 82.81 | 4.40 | 1.90 | 0.57 | 0.70 | 0.44 | 0.14 | 0.17 |
+| results_plan_cifar100_ensemble_softmax_mean_amp | 5 | 80.68 | 84.80 | 83.88 | 4.10 | 2.40 | 0.59 | 0.70 | 0.41 | 0.14 | 0.17 |
+| results_plan_cifar100_mask_seen_class_amp | 5 | 77.04 | 81.50 | 80.83 | 5.20 | 1.00 | 0.79 | 0.70 | 0.53 | 0.14 | 0.17 |
+| results_plan_cifar100_no_ema_amp | 5 | 80.15 | 82.72 | 82.71 | 7.07 | -0.85 | 0.65 | 0.70 | 0.48 | 0.14 | 0.17 |
+| results_plan_cifar100_no_prompt_ema_amp | 5 | 70.21 | 71.03 | 71.44 | 7.62 | 0.96 | 0.63 | 0.70 | 0.50 | 0.14 | 0.17 |
+| results_plan_cifar100_no_prompt_no_ema_amp | 5 | 69.82 | 70.57 | 71.15 | 8.33 | 0.54 | 0.66 | 0.70 | 0.54 | 0.14 | 0.17 |
+| results_plan_cifar100_no_prompt_proxy_amp | 5 | 71.69 | 72.40 | 73.30 | 7.60 | 0.80 | 0.61 | 0.70 | 0.37 | 0.14 | 0.17 |
+| results_plan_cifar100_no_rear_ema_amp | 5 | 80.28 | 83.20 | 82.20 | 5.60 | 0.60 | 0.64 | 0.70 | 0.52 | 0.14 | 0.17 |
+| results_plan_cifar100_no_rear_no_ema_amp | 5 | 78.96 | 82.60 | 81.67 | 6.00 | 0.00 | 0.68 | 0.70 | 0.59 | 0.14 | 0.17 |
+| results_plan_cifar100_no_rear_proxy_amp | 5 | 82.17 | 83.20 | 83.75 | 5.60 | 0.40 | 0.61 | 0.70 | 0.37 | 0.14 | 0.17 |
+| results_plan_cifar100_ranpac_dagger_amp | 5 | 68.44 | 76.00 | 77.83 | 8.50 | -2.00 | 0.72 | 0.70 | 0.51 | 0.14 | 0.17 |
+| results_plan_cifar100_rd0_rb10_amp | 5 | 79.46 | 81.17 | 84.53 | 3.43 | 6.88 | 0.61 | 0.70 | 0.37 | 0.14 | 0.17 |
+| results_plan_cifar100_rd100_rb10_amp | 5 | 85.39 | 87.38 | 84.30 | 3.40 | -3.03 | 0.61 | 0.70 | 0.37 | 0.14 | 0.17 |
+| results_plan_cifar100_rd50_rb30_amp | 5 | 82.41 | 85.70 | 84.74 | 3.80 | 2.60 | 0.52 | 0.70 | 0.33 | 0.14 | 0.17 |
+| results_plan_cifar100_rd50_rb50_amp | 5 | 81.84 | 85.10 | 84.13 | 4.00 | 2.30 | 0.56 | 0.70 | 0.42 | 0.14 | 0.17 |
+| results_plan_cub200_sup21k_default_amp | 5 | 69.08 | 70.51 | 71.46 | 12.24 | 1.00 | 0.92 | 0.98 | 0.81 | 0.69 | 0.17 |
+| results_plan_imagenetr_sup21k_default_amp | 5 | 55.12 | 58.92 | 53.61 | 14.87 | -3.00 | 0.74 | 0.81 | 0.68 | 0.72 | 0.17 |

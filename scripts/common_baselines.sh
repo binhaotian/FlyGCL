@@ -104,6 +104,6 @@ run_experiment() {
         --topk $TOPK \
         --eval_period $EVAL_PERIOD \
         --rnd_NM \
-        "${EXTRA_ARGS[@]}" \
-        | tee "${LOG_PATH}/logs/${DATASET}/${NOTE}/seed_${SEEDS}_log.txt" 2>&1
+        "${EXTRA_ARGS[@]}" 2>&1 \
+        | tee "${LOG_PATH}/logs/${DATASET}/${NOTE}/seed_${SEEDS}_log.txt"
 }

@@ -1,0 +1,9 @@
+table,row,result_group,n_json,evidence_status,paper_A_auc,paper_A_last,paper_A_avg,paper_F_last,paper_BWT,json_A_auc_mean,json_A_auc_std,json_A_last_mean,json_A_last_std,json_A_avg_mean,json_A_avg_std,json_F_last_mean,json_F_last_std,json_BWT_mean,json_BWT_std,note
+A.1 Overall Performance,Sup-21K / CIFAR-100,results_balanced_v6_amp,5,ARCHIVED_JSON,83.24,86.76,82.72,5.03,4.35,81.47,0.61,84.59,0.37,83.86,0.70,3.79,0.28,1.87,0.34,Paper FlyPrompt
+A.1 Overall Performance,Sup-21K / ImageNet-R,results_plan_imagenetr_sup21k_default_amp,5,ARCHIVED_JSON,56.58,55.27,60.38,13.42,,55.12,0.74,53.61,0.68,58.92,0.81,14.87,0.72,-3.00,0.17,Paper FlyPrompt
+A.1 Overall Performance,Sup-21K / CUB-200,results_plan_cub200_sup21k_default_amp,5,ARCHIVED_JSON,70.64,73.4,72.22,10.97,,69.08,0.92,71.46,0.81,70.51,0.98,12.24,0.69,1.00,0.17,Paper FlyPrompt
+A.1 Overall Performance,Sup-21K/1K / all datasets,,0,NO_ARCHIVED_JSON_MAPPING,,,,,,,,,,,,,,,,Paper table row exists; no local archived JSON/config mapping
+A.1 Overall Performance,iBOT-21K / all datasets,,0,NO_ARCHIVED_JSON_MAPPING,,,,,,,,,,,,,,,,Paper table row exists; no local archived JSON/config mapping
+A.1 Overall Performance,iBOT-1K / all datasets,,0,NO_ARCHIVED_JSON_MAPPING,,,,,,,,,,,,,,,,Paper table row exists; no local archived JSON/config mapping
+A.1 Overall Performance,DINO-1K / all datasets,,0,NO_ARCHIVED_JSON_MAPPING,,,,,,,,,,,,,,,,Paper table row exists; no local archived JSON/config mapping
+A.1 Overall Performance,MoCo v3-1K / all datasets,,0,NO_ARCHIVED_JSON_MAPPING,,,,,,,,,,,,,,,,Paper table row exists; no local archived JSON/config mapping

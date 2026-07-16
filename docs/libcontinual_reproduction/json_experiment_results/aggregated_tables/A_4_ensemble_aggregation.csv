@@ -1,0 +1,7 @@
+table,row,result_group,n_json,evidence_status,paper_A_auc,paper_A_last,paper_A_avg,paper_F_last,paper_BWT,json_A_auc_mean,json_A_auc_std,json_A_last_mean,json_A_last_std,json_A_avg_mean,json_A_avg_std,json_F_last_mean,json_F_last_std,json_BWT_mean,json_BWT_std,note
+A.4 Ensemble Aggregation,Mean,results_plan_cifar100_ensemble_mean_amp,5,ARCHIVED_JSON,81.34,85.11,,,,79.62,0.57,82.81,0.44,83.90,0.70,4.40,0.14,1.90,0.17,Paper Mean
+A.4 Ensemble Aggregation,Max Prob.,results_plan_cifar100_ensemble_max_prob_amp,5,ARCHIVED_JSON,82.29,84.95,,,,80.56,0.66,82.63,0.50,83.90,0.70,4.30,0.14,1.70,0.17,Paper Max Prob.
+A.4 Ensemble Aggregation,Min Entropy,,0,NO_ARCHIVED_JSON_MAPPING,81.92,84.23,,,,,,,,,,,,,,Report value exists; no implemented local ensemble method / JSON mapping
+A.4 Ensemble Aggregation,SoftMax+Mean,results_plan_cifar100_ensemble_softmax_mean_amp,5,ARCHIVED_JSON,82.3,85.98,,,,80.68,0.59,83.88,0.41,84.80,0.70,4.10,0.14,2.40,0.17,Paper SoftMax+Mean
+A.4 Ensemble Aggregation,SoftMax+Max Prob.,results_balanced_v6_amp,5,ARCHIVED_JSON,83.24,86.76,,,,81.47,0.61,84.59,0.37,83.86,0.70,3.79,0.28,1.87,0.34,Paper SoftMax+Max Prob.
+A.4 Ensemble Aggregation,SoftMax+Min Entropy,,0,NO_ARCHIVED_JSON_MAPPING,83.11,86.5,,,,,,,,,,,,,,Report value exists; no implemented local ensemble method / JSON mapping

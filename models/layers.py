@@ -42,7 +42,7 @@ class ConvBlock(nn.Module):
                 )
                 layer = [conv, bn]
 
-        if opt.activetype is not "None":
+        if opt.activetype != "None":
             active = getattr(nn, opt.activetype)()
             layer.append(active)
 
@@ -77,7 +77,7 @@ class FCBlock(nn.Module):
                 )
                 layer = [lin, bn]
 
-        if opt.activetype is not "None":
+        if opt.activetype != "None":
             active = getattr(nn, opt.activetype)()
             layer.append(active)
 

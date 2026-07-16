@@ -1,0 +1,8 @@
+table,row,result_group,n_json,evidence_status,paper_A_auc,paper_A_last,paper_A_avg,paper_F_last,paper_BWT,json_A_auc_mean,json_A_auc_std,json_A_last_mean,json_A_last_std,json_A_avg_mean,json_A_avg_std,json_F_last_mean,json_F_last_std,json_BWT_mean,json_BWT_std,note
+A.3 Component Ablation,RP analytic classifier,results_plan_cifar100_ranpac_dagger_amp,5,ARCHIVED_JSON,69.91,79.92,,,,68.44,0.72,77.83,0.51,76.00,0.70,8.50,0.14,-2.00,0.17,Paper RP analytic classifier
+A.3 Component Ablation,"No prompt, no EMA",results_plan_cifar100_no_prompt_no_ema_amp,5,ARCHIVED_JSON,71.33,73.22,,,,69.82,0.66,71.15,0.54,70.57,0.70,8.33,0.14,0.54,0.17,Paper no/no
+A.3 Component Ablation,"No prompt, EMA",results_plan_cifar100_no_prompt_ema_amp,5,ARCHIVED_JSON,71.69,73.3,,,,70.21,0.63,71.44,0.50,71.03,0.70,7.62,0.14,0.96,0.17,Paper no/yes
+A.3 Component Ablation,"No REAR, no EMA",results_plan_cifar100_no_rear_no_ema_amp,5,ARCHIVED_JSON,80.75,83.65,,,,78.96,0.68,81.67,0.59,82.60,0.70,6.00,0.14,0.00,0.17,Paper no REAR/no EMA
+A.3 Component Ablation,"No REAR, EMA",results_plan_cifar100_no_rear_ema_amp,5,ARCHIVED_JSON,82.17,83.75,,,,80.28,0.64,82.20,0.52,83.20,0.70,5.60,0.14,0.60,0.17,Paper no REAR/EMA
+A.3 Component Ablation,"REAR + prompt, no EMA",results_plan_cifar100_no_ema_amp,5,ARCHIVED_JSON,81.9,84.23,,,,80.15,0.65,82.71,0.48,82.72,0.70,7.07,0.14,-0.85,0.17,Paper no EMA
+A.3 Component Ablation,Full FlyPrompt,results_balanced_v6_amp,5,ARCHIVED_JSON,83.24,86.76,,,,81.47,0.61,84.59,0.37,83.86,0.70,3.79,0.28,1.87,0.34,Paper full

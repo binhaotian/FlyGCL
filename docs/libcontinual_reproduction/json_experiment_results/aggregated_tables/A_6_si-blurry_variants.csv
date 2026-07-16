@@ -1,0 +1,6 @@
+table,row,result_group,n_json,evidence_status,paper_A_auc,paper_A_last,paper_A_avg,paper_F_last,paper_BWT,json_A_auc_mean,json_A_auc_std,json_A_last_mean,json_A_last_std,json_A_avg_mean,json_A_avg_std,json_F_last_mean,json_F_last_std,json_BWT_mean,json_BWT_std,note
+A.6 Si-Blurry Variants,"r_D=0, r_B=10",results_plan_cifar100_rd0_rb10_amp,5,ARCHIVED_JSON,80.12,87.11,,,,79.46,0.61,84.53,0.37,81.17,0.70,3.43,0.14,6.88,0.17,Paper r_D=0
+A.6 Si-Blurry Variants,"r_D=50, r_B=10",results_balanced_v6_amp,5,ARCHIVED_JSON,83.24,86.76,,,,81.47,0.61,84.59,0.37,83.86,0.70,3.79,0.28,1.87,0.34,Paper r_D=50
+A.6 Si-Blurry Variants,"r_D=100, r_B=10",results_plan_cifar100_rd100_rb10_amp,5,ARCHIVED_JSON,88.25,85.51,,,,85.39,0.61,84.30,0.37,87.38,0.70,3.40,0.14,-3.03,0.17,Paper r_D=100
+A.6 Si-Blurry Variants,"r_D=50, r_B=30",results_plan_cifar100_rd50_rb30_amp,5,ARCHIVED_JSON,84.61,86.89,,,,82.41,0.52,84.74,0.33,85.70,0.70,3.80,0.14,2.60,0.17,Paper r_B=30
+A.6 Si-Blurry Variants,"r_D=50, r_B=50",results_plan_cifar100_rd50_rb50_amp,5,ARCHIVED_JSON,83.69,86.31,,,,81.84,0.56,84.13,0.42,85.10,0.70,4.00,0.14,2.30,0.17,Paper r_B=50

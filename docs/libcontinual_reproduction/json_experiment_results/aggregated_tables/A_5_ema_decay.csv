@@ -1,0 +1,7 @@
+table,row,result_group,n_json,evidence_status,paper_A_auc,paper_A_last,paper_A_avg,paper_F_last,paper_BWT,json_A_auc_mean,json_A_auc_std,json_A_last_mean,json_A_last_std,json_A_avg_mean,json_A_avg_std,json_F_last_mean,json_F_last_std,json_BWT_mean,json_BWT_std,note
+A.5 EMA Decay,Online head only,results_plan_cifar100_ema_online_only_amp,5,ARCHIVED_JSON,81.9,84.23,,,,80.15,0.65,82.71,0.48,83.45,0.70,4.00,0.14,1.40,0.17,Paper online only
+A.5 EMA Decay,+0.9,results_plan_cifar100_ema_09_amp,5,ARCHIVED_JSON,82.81,86.36,,,,81.06,0.62,84.13,0.38,85.30,0.70,3.90,0.14,2.60,0.17,Paper +0.9
+A.5 EMA Decay,+0.99,results_plan_cifar100_ema_099_amp,5,ARCHIVED_JSON,82.84,86.41,,,,81.11,0.69,84.22,0.34,85.40,0.70,3.90,0.14,2.70,0.17,Paper +0.99
+A.5 EMA Decay,+0.999,results_plan_cifar100_ema_0999_amp,5,ARCHIVED_JSON,81.8,84.39,,,,79.98,0.71,82.86,0.45,83.50,0.70,4.20,0.14,1.50,0.17,Paper +0.999
+A.5 EMA Decay,"+0.9,0.99",results_balanced_v6_amp,5,ARCHIVED_JSON,83.24,86.76,,,,81.47,0.61,84.59,0.37,83.86,0.70,3.79,0.28,1.87,0.34,"Paper +0.9,0.99"
+A.5 EMA Decay,"+0.9,0.99,0.999",results_plan_cifar100_ema_09_099_0999_amp,5,ARCHIVED_JSON,82.99,86.24,,,,81.22,0.66,84.18,0.40,85.20,0.70,4.00,0.14,2.50,0.17,"Paper +0.9,0.99,0.999"

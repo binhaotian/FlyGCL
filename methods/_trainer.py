@@ -5,7 +5,6 @@ import os
 import random
 import sys
 import time
-import math
 from collections import defaultdict
 
 import numpy as np
@@ -40,7 +39,7 @@ class _Trainer():
 
         # 为部分方法启用“按样本数推进”的内部 step 调度（不依赖真实任务边界）。
         method_name = getattr(self, "method", None)
-        step_aware_methods = {"dualprompt", "mvp"}
+        step_aware_methods = {"dualprompt", "mvp", "flyprompt"}
         if method_name in step_aware_methods:
             # step_num 必须大于 1；如果没有提供或 <=0，则默认使用 n_tasks。
             self.step_num = getattr(self, "step_num", None)
@@ -418,9 +417,9 @@ class _Trainer():
             # A_auc：周期性在线评估准确率的平均值。
             # A_avg：每个任务结束时准确率的平均值。
             # A_last：最后一个任务结束时的准确率。
-            A_auc = np.mean(eval_results["test_acc"])
-            A_avg = np.mean(task_records["task_acc"])
-            A_last = task_records["task_acc"][self.n_tasks - 1]
+            A_auc = float(np.mean(eval_results["test_acc"])) if len(eval_results["test_acc"]) > 0 else None
+            A_avg = float(np.mean(task_records["task_acc"]))
+            A_last = float(task_records["task_acc"][self.n_tasks - 1])
 
             # 遗忘（F）
             # F_last 计算的是每个类别从历史最好成绩到最终成绩的下降幅度。
@@ -430,7 +429,7 @@ class _Trainer():
                 for j in range(self.n_classes):
                     if np.max(cls_acc[:-1, j]) > 0:
                         acc_diff.append(np.max(cls_acc[:-1, j]) - cls_acc[-1, j])
-                F_last = np.mean(acc_diff)
+                F_last = float(np.mean(acc_diff)) if len(acc_diff) > 0 else -999
             else:
                 F_last = -999
 
@@ -447,17 +446,17 @@ class _Trainer():
                     last_acc = cls_acc[-1, j]
                     bwt_vals.append(last_acc - first_acc)
                 if len(bwt_vals) > 0:
-                    BWT_last = np.mean(bwt_vals)
+                    BWT_last = float(np.mean(bwt_vals))
                 else:
                     BWT_last = -999
             else:
                 BWT_last = -999
 
-            logger.info(f"======== Summary =======")
+            logger.info("======== Summary =======")
             logger.info(self.note)
             logger.info(f"A_auc {A_auc} | A_avg {A_avg} | A_last {A_last} | F_last {F_last}")
             logger.info(f"BWT_last {BWT_last}")
-            logger.info(f"="*24)
+            logger.info("="*24)
             logger.info(eval_results['test_acc'])
 
             np.save(f"{self.log_dir}/seed_{self.rnd_seed}.npy", task_records["task_acc"])
@@ -486,7 +485,7 @@ class _Trainer():
                 "task_id": self.n_tasks - 1,
                 "sample_num": int(samples_cnt),
                 "progress_percent": 100.0,
-                "A_auc": float(A_auc),
+                "A_auc": A_auc,
                 "A_avg": float(A_avg),
                 "A_last": float(A_last),
                 "F_last": float(F_last),
